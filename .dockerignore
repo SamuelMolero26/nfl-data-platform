@@ -1,0 +1,26 @@
+# Virtual environments
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+
+# Lake data (mounted as volume at runtime)
+lake/staged/
+lake/curated/
+
+# ML models (runtime artifacts)
+ml/models/
+
+# Secrets
+.env
+
+# Git
+.git/
+.github/
+
+# Dev artifacts
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
