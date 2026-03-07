@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NFL Data Platform</title>
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+
+    header { background: #1a1f2e; border-bottom: 1px solid #2d3748; padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; }
+    header h1 { font-size: 1.25rem; font-weight: 700; color: #63b3ed; }
+    header span { font-size: 0.8rem; color: #718096; }
+
+    nav { display: flex; gap: 0; background: #1a1f2e; border-bottom: 1px solid #2d3748; padding: 0 2rem; }
+    nav button { padding: 0.75rem 1.25rem; background: none; border: none; color: #a0aec0; cursor: pointer; font-size: 0.875rem; border-bottom: 2px solid transparent; }
+    nav button.active, nav button:hover { color: #63b3ed; border-bottom-color: #63b3ed; }
+
+    main { padding: 2rem; max-width: 1200px; margin: 0 auto; }
+    section { display: none; }
+    section.active { display: block; }
+
+    h2 { font-size: 1rem; font-weight: 600; color: #90cdf4; margin-bottom: 1rem; }
+
+    .card { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
+
+    textarea, input, select {
+      width: 100%; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px;
+      color: #e2e8f0; padding: 0.6rem 0.75rem; font-size: 0.875rem; font-family: monospace;
+    }
+    textarea:focus, input:focus, select:focus { outline: none; border-color: #63b3ed; }
+
+    button.btn {
+      background: #2b6cb0; color: white; border: none; border-radius: 6px;
+      padding: 0.5rem 1.25rem; cursor: pointer; font-size: 0.875rem; margin-top: 0.75rem;
+    }
+    button.btn:hover { background: #3182ce; }
+    button.btn.sm { padding: 0.3rem 0.75rem; font-size: 0.8rem; margin-top: 0; }
+
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
+    .badge.blue { background: #2b4b6e; color: #90cdf4; }
+    .badge.green { background: #1c4532; color: #68d391; }
+    .badge.yellow { background: #44371b; color: #f6e05e; }
+
+    .error { color: #fc8181; font-size: 0.85rem; margin-top: 0.5rem; display: block; }
+    .success { color: #68d391; font-size: 0.85rem; margin-top: 0.5rem; display: block; }
+    .label-sm { font-size: 0.75rem; color: #718096; margin-bottom: 0.35rem; display: block; }
+    .row { display: flex; gap: 0.75rem; align-items: flex-end; }
+    .row > * { flex: 1; }
+
+    .schema-row { display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0; border-bottom: 1px solid #2d3748; font-size: 0.8rem; }
+    .schema-row:last-child { border: none; }
+    .null-bar { height: 4px; background: #2d3748; border-radius: 2px; margin-top: 3px; width: 80px; }
+    .null-fill { height: 4px; background: #e53e3e; border-radius: 2px; }
+
+    .table-wrap { overflow-x: auto; overflow-y: auto; max-height: 420px; border-radius: 6px; border: 1px solid #2d3748; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th { background: #2d3748; color: #90cdf4; padding: 0.5rem 0.75rem; text-align: left; position: sticky; top: 0; }
+    td { padding: 0.45rem 0.75rem; border-bottom: 1px solid #1a1f2e; color: #cbd5e0; white-space: nowrap; }
+    tr:hover td { background: #1e2535; }
+  </style>
+</head>
+<body x-data="app()" x-init="init()">
+
+<header>
+  <h1>NFL Data Platform</h1>
+  <span>Data Lake · SQL · Graph</span>
+</header>
+
+<nav>
+  <button :class="{active: tab==='query'}"   @click="tab='query'">SQL Query</button>
+  <button :class="{active: tab==='players'}" @click="tab='players'; loadPlayers()">Players</button>
+  <button :class="{active: tab==='teams'}"   @click="tab='teams'; loadTeams()">Teams</button>
+  <button :class="{active: tab==='manage'}"  @click="tab='manage'; loadDatasets()">Manage Data</button>
+  <button :class="{active: tab==='graph'}"   @click="tab='graph'">Graph</button>
+</nav>
+
+<main>
+
+  <!-- SQL QUERY -->
+  <section :class="{active: tab==='query'}">
+    <div class="card">
+      <h2>SQL Query</h2>
+      <p class="label-sm">Available tables: <code>players</code>, <code>team_stats</code></p>
+      <textarea x-model="sql" rows="5" placeholder="SELECT * FROM players LIMIT 10"></textarea>
+      <div style="display:flex;gap:0.75rem;align-items:center;margin-top:0.75rem">
+        <button class="btn" style="margin:0" @click="runQuery()" :disabled="loading">Run Query</button>
+        <template x-if="queryResult">
+          <button class="btn sm" @click="downloadCSV(queryResult)">Download CSV</button>
+        </template>
+      </div>
+      <span class="error" x-text="queryError"></span>
+    </div>
+    <template x-if="queryResult">
+      <div class="card">
+        <h2 x-text="`Results — ${queryResult.count} rows`"></h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th x-for="col in queryResult.columns" :key="col" x-text="col"></th></tr></thead>
+            <tbody>
+              <template x-for="(row, i) in queryResult.rows" :key="i">
+                <tr><td x-for="col in queryResult.columns" :key="col" x-text="row[col] ?? '—'"></td></tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </template>
+  </section>
+
+  <!-- PLAYERS -->
+  <section :class="{active: tab==='players'}">
+    <div class="card">
+      <h2>Player Explorer</h2>
+      <div class="row">
+        <div>
+          <span class="label-sm">Position</span>
+          <select x-model="playerFilters.position">
+            <option value="">All</option>
+            <template x-for="p in positions" :key="p"><option x-text="p" :value="p"></option></template>
+          </select>
+        </div>
+        <div>
+          <span class="label-sm">School</span>
+          <input x-model="playerFilters.school" placeholder="e.g. Alabama" />
+        </div>
+        <div>
+          <span class="label-sm">Draft Team</span>
+          <input x-model="playerFilters.draft_team" placeholder="e.g. Cowboys" />
+        </div>
+        <div style="flex:0"><button class="btn" @click="loadPlayers()">Filter</button></div>
+      </div>
+    </div>
+    <template x-if="playerData.length">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
+          <h2 x-text="`${playerData.length} Players`"></h2>
+          <button class="btn sm" @click="downloadCSV({columns: Object.keys(playerData[0]), rows: playerData, count: playerData.length})">Download CSV</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th><th>Pos</th><th>School</th><th>Ht (in)</th><th>Wt</th>
+                <th>40yd</th><th>Vertical</th><th>Bench</th><th>Broad Jump</th>
+                <th>Draft Team</th><th>Round</th><th>Pick</th><th>Year</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="p in playerData" :key="p.player_name">
+                <tr>
+                  <td x-text="p.player_name"></td>
+                  <td><span class="badge blue" x-text="p.position"></span></td>
+                  <td x-text="p.school ?? '—'"></td>
+                  <td x-text="p.height_in ?? '—'"></td>
+                  <td x-text="p.weight_lbs ?? '—'"></td>
+                  <td x-text="p.forty_yard ?? '—'"></td>
+                  <td x-text="p.vertical_in ?? '—'"></td>
+                  <td x-text="p.bench_reps ?? '—'"></td>
+                  <td x-text="p.broad_jump_in ?? '—'"></td>
+                  <td x-text="p.draft_team ?? '—'"></td>
+                  <td x-text="p.draft_round ?? '—'"></td>
+                  <td x-text="p.draft_pick ?? '—'"></td>
+                  <td x-text="p.draft_year ?? '—'"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </template>
+  </section>
+
+  <!-- TEAMS -->
+  <section :class="{active: tab==='teams'}">
+    <div class="card">
+      <h2>Team Season Stats</h2>
+      <div class="row">
+        <div>
+          <span class="label-sm">Team</span>
+          <select x-model="selectedTeam">
+            <option value="">Select team…</option>
+            <template x-for="t in teamList" :key="t"><option x-text="t" :value="t"></option></template>
+          </select>
+        </div>
+        <div>
+          <span class="label-sm">From Season</span>
+          <input type="number" x-model="teamSeasonFrom" placeholder="1999" min="1999" max="2022" />
+        </div>
+        <div>
+          <span class="label-sm">To Season</span>
+          <input type="number" x-model="teamSeasonTo" placeholder="2022" min="1999" max="2022" />
+        </div>
+        <div style="flex:0"><button class="btn" @click="loadTeamStats()">Load</button></div>
+      </div>
+    </div>
+    <template x-if="teamStats.length">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
+          <h2 x-text="`${selectedTeam} — ${teamStats.length} seasons`"></h2>
+          <button class="btn sm" @click="downloadCSV({columns: Object.keys(teamStats[0]), rows: teamStats, count: teamStats.length})">Download CSV</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Season</th><th>W</th><th>L</th><th>Win%</th>
+                <th>Pts Scored</th><th>Pts Allowed</th><th>Diff/G</th>
+                <th>Pass Yds</th><th>Rush Yds</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="s in teamStats" :key="s.season">
+                <tr>
+                  <td x-text="s.season"></td>
+                  <td x-text="s.wins"></td>
+                  <td x-text="s.losses"></td>
+                  <td x-text="s.win_pct?.toFixed(3) ?? '—'"></td>
+                  <td x-text="s.points_scored"></td>
+                  <td x-text="s.points_allowed"></td>
+                  <td x-text="s.point_diff_per_game?.toFixed(2) ?? '—'"></td>
+                  <td x-text="s.offense_pass_yards ?? '—'"></td>
+                  <td x-text="s.offense_rush_yards ?? '—'"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </template>
+  </section>
+
+  <!-- MANAGE DATA -->
+  <section :class="{active: tab==='manage'}">
+    <h2 style="margin-bottom:1rem">Data Management</h2>
+    <div class="grid2">
+
+      <!-- Left column: dataset list + cleaning tools -->
+      <div>
+        <div class="card">
+          <h2>Datasets</h2>
+          <template x-for="(files, zone) in datasets" :key="zone">
+            <div style="margin-bottom:1rem">
+              <p class="label-sm" x-text="zone.toUpperCase()"></p>
+              <template x-for="f in files" :key="f.name">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:1px solid #2d3748">
+                  <span style="font-size:0.85rem" x-text="f.name"></span>
+                  <div style="display:flex;gap:0.5rem;align-items:center">
+                    <span class="badge yellow" x-text="`${f.rows.toLocaleString()} rows`"></span>
+                    <span class="badge blue" x-text="`${f.size_kb} KB`"></span>
+                    <button class="btn sm" @click="previewDataset(f.name)">Preview</button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+
+        <div class="card">
+          <h2>Fill Null Values</h2>
+          <span class="label-sm">Dataset</span>
+          <input x-model="clean.fillDataset" placeholder="e.g. combine" />
+          <span class="label-sm" style="margin-top:0.5rem">Column</span>
+          <input x-model="clean.fillColumn" placeholder="e.g. forty_yard" />
+          <span class="label-sm" style="margin-top:0.5rem">Strategy</span>
+          <select x-model="clean.fillStrategy">
+            <option value="mean">Mean</option>
+            <option value="median">Median</option>
+            <option value="mode">Mode</option>
+            <option value="value">Fixed Value</option>
+          </select>
+          <template x-if="clean.fillStrategy === 'value'">
+            <input x-model="clean.fillValue" placeholder="Fill value" style="margin-top:0.5rem" />
+          </template>
+          <button class="btn" @click="fillNulls()">Apply</button>
+          <span class="success" x-text="clean.fillResult"></span>
+          <span class="error" x-text="clean.fillError"></span>
+        </div>
+
+        <div class="card">
+          <h2>Filter Rows</h2>
+          <span class="label-sm">Dataset</span>
+          <input x-model="clean.filterDataset" placeholder="e.g. combine" />
+          <span class="label-sm" style="margin-top:0.5rem">SQL WHERE clause (rows matching this are kept)</span>
+          <input x-model="clean.filterSQL" placeholder="e.g. forty_yard < 5.0" />
+          <button class="btn" @click="filterRows()">Apply Filter</button>
+          <span class="success" x-text="clean.filterResult"></span>
+          <span class="error" x-text="clean.filterError"></span>
+        </div>
+      </div>
+
+      <!-- Right column: preview -->
+      <div>
+        <template x-if="preview">
+          <div class="card">
+            <h2 x-text="`Preview: ${preview.dataset} (${preview.total_rows.toLocaleString()} rows)`"></h2>
+            <div style="margin-bottom:1rem">
+              <template x-for="col in preview.schema" :key="col.column">
+                <div class="schema-row">
+                  <div>
+                    <span x-text="col.column" style="color:#e2e8f0"></span>
+                    <span class="badge blue" x-text="col.dtype" style="margin-left:0.5rem"></span>
+                  </div>
+                  <div style="text-align:right">
+                    <span x-text="`${col.null_pct}% null`" style="font-size:0.7rem;color:#718096"></span>
+                    <div class="null-bar"><div class="null-fill" :style="`width:${col.null_pct}%`"></div></div>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <div class="table-wrap" style="max-height:280px">
+              <table>
+                <thead>
+                  <tr><th x-for="col in preview.schema" :key="col.column" x-text="col.column"></th></tr>
+                </thead>
+                <tbody>
+                  <template x-for="(row, i) in preview.preview" :key="i">
+                    <tr>
+                      <td x-for="col in preview.schema" :key="col.column" x-text="row[col.column] ?? '—'"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </section>
+
+  <!-- GRAPH -->
+  <section :class="{active: tab==='graph'}">
+    <div class="grid2">
+      <div class="card">
+        <h2>Player Neighbors</h2>
+        <span class="label-sm">Player Name</span>
+        <input x-model="graph.playerName" placeholder="e.g. Tommy Akingbesote" />
+        <span class="label-sm" style="margin-top:0.5rem">Depth</span>
+        <select x-model="graph.depth">
+          <option value="1">1 hop</option>
+          <option value="2">2 hops</option>
+          <option value="3">3 hops</option>
+        </select>
+        <button class="btn" @click="fetchNeighbors()">Search</button>
+        <span class="error" x-text="graph.neighborError"></span>
+        <template x-if="graph.neighbors.length">
+          <div style="margin-top:1rem">
+            <template x-for="(n, i) in graph.neighbors" :key="i">
+              <div style="padding:0.4rem 0;border-bottom:1px solid #2d3748;font-size:0.82rem">
+                <span class="badge green" x-text="n.type"></span>
+                <span style="margin-left:0.5rem" x-text="n.node?.name || n.node?.abbreviation || n.node?.year"></span>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+
+      <div class="card">
+        <h2>Shortest Path</h2>
+        <span class="label-sm">From</span>
+        <input x-model="graph.pathFrom" placeholder="e.g. Tommy Akingbesote" />
+        <span class="label-sm" style="margin-top:0.5rem">To</span>
+        <input x-model="graph.pathTo" placeholder="e.g. LSU" />
+        <button class="btn" @click="fetchPath()">Find Path</button>
+        <span class="error" x-text="graph.pathError"></span>
+        <template x-if="graph.path">
+          <div style="margin-top:1rem">
+            <p class="label-sm" x-text="`${graph.path.hops} hop(s)`"></p>
+            <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.5rem;align-items:center">
+              <template x-for="(node, i) in graph.path.path_nodes" :key="i">
+                <span style="display:flex;align-items:center;gap:0.4rem">
+                  <span class="badge blue" x-text="node.name"></span>
+                  <span x-show="i < graph.path.path_nodes.length - 1" style="color:#718096">→</span>
+                </span>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <div class="card">
+        <h2>College Pipeline</h2>
+        <span class="label-sm">College Name</span>
+        <input x-model="graph.college" placeholder="e.g. Alabama" />
+        <button class="btn" @click="fetchCollegePipeline()">Search</button>
+        <span class="error" x-text="graph.collegeError"></span>
+        <template x-if="graph.collegePlayers.length">
+          <div class="table-wrap" style="margin-top:1rem;max-height:280px">
+            <table>
+              <thead><tr><th>Player</th><th>Pos</th><th>Draft Team</th><th>Round</th><th>Year</th></tr></thead>
+              <tbody>
+                <template x-for="p in graph.collegePlayers" :key="p.player">
+                  <tr>
+                    <td x-text="p.player"></td>
+                    <td x-text="p.position ?? '—'"></td>
+                    <td x-text="p.drafted_by ?? 'Undrafted'"></td>
+                    <td x-text="p.round ?? '—'"></td>
+                    <td x-text="p.year ?? '—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </div>
+
+      <div class="card">
+        <h2>Team Draft History</h2>
+        <span class="label-sm">Team Name</span>
+        <input x-model="graph.draftTeam" placeholder="e.g. Dallas Cowboys" />
+        <span class="label-sm" style="margin-top:0.5rem">Year (optional)</span>
+        <input type="number" x-model="graph.draftYear" placeholder="2025" />
+        <button class="btn" @click="fetchDraftHistory()">Search</button>
+        <span class="error" x-text="graph.draftError"></span>
+        <template x-if="graph.draftPicks.length">
+          <div class="table-wrap" style="margin-top:1rem;max-height:280px">
+            <table>
+              <thead><tr><th>Player</th><th>Pos</th><th>Round</th><th>Pick</th><th>Year</th></tr></thead>
+              <tbody>
+                <template x-for="p in graph.draftPicks" :key="p.player">
+                  <tr>
+                    <td x-text="p.player"></td>
+                    <td x-text="p.position ?? '—'"></td>
+                    <td x-text="p.round ?? '—'"></td>
+                    <td x-text="p.pick ?? '—'"></td>
+                    <td x-text="p.year ?? '—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+function app() {
+  return {
+    tab: 'query',
+    loading: false,
+
+    sql: "SELECT position, COUNT(*) as count, ROUND(AVG(forty_yard),3) as avg_40yd\nFROM players\nWHERE forty_yard IS NOT NULL\nGROUP BY position\nORDER BY avg_40yd",
+    queryResult: null,
+    queryError: '',
+
+    playerFilters: { position: '', school: '', draft_team: '' },
+    playerData: [],
+    positions: ['C','CB','DT','EDGE','G','LB','OT','QB','RB','SAF','TE','WR'],
+
+    teamList: [],
+    selectedTeam: '',
+    teamSeasonFrom: '',
+    teamSeasonTo: '',
+    teamStats: [],
+
+    datasets: {},
+    preview: null,
+    clean: {
+      fillDataset:'', fillColumn:'', fillStrategy:'mean', fillValue:'', fillResult:'', fillError:'',
+      filterDataset:'', filterSQL:'', filterResult:'', filterError:'',
+    },
+
+    graph: {
+      playerName:'', depth:'1', neighbors:[], neighborError:'',
+      pathFrom:'', pathTo:'', path:null, pathError:'',
+      college:'', collegePlayers:[], collegeError:'',
+      draftTeam:'', draftYear:'', draftPicks:[], draftError:'',
+    },
+
+    async init() {},
+
+    async api(path, opts={}) {
+      const res = await fetch(path, opts);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.detail || 'Request failed');
+      return json;
+    },
+
+    async runQuery() {
+      this.queryError = ''; this.queryResult = null; this.loading = true;
+      try {
+        this.queryResult = await this.api('/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sql: this.sql }),
+        });
+      } catch(e) { this.queryError = e.message; }
+      this.loading = false;
+    },
+
+    downloadCSV({ columns, rows }) {
+      const header = columns.join(',');
+      const body = rows.map(r =>
+        columns.map(c => {
+          const v = r[c] ?? '';
+          return typeof v === 'string' && v.includes(',') ? `"${v}"` : v;
+        }).join(',')
+      ).join('\n');
+      const blob = new Blob([header + '\n' + body], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'export.csv';
+      a.click();
+    },
+
+    async loadPlayers() {
+      const p = this.playerFilters;
+      const q = new URLSearchParams();
+      if (p.position)   q.set('position', p.position);
+      if (p.school)     q.set('school', p.school);
+      if (p.draft_team) q.set('draft_team', p.draft_team);
+      q.set('limit', '500');
+      const data = await this.api(`/players?${q}`);
+      this.playerData = data.players;
+    },
+
+    async loadTeams() {
+      const data = await this.api('/teams');
+      this.teamList = data.teams;
+    },
+
+    async loadTeamStats() {
+      if (!this.selectedTeam) return;
+      const q = new URLSearchParams();
+      if (this.teamSeasonFrom) q.set('season_from', this.teamSeasonFrom);
+      if (this.teamSeasonTo)   q.set('season_to',   this.teamSeasonTo);
+      const data = await this.api(`/teams/${this.selectedTeam}/stats?${q}`);
+      this.teamStats = data.seasons;
+    },
+
+    async loadDatasets() {
+      this.datasets = await this.api('/manage/datasets');
+    },
+
+    async previewDataset(name) {
+      this.preview = await this.api(`/manage/preview/${name}`);
+    },
+
+    async fillNulls() {
+      this.clean.fillResult = ''; this.clean.fillError = '';
+      try {
+        const r = await this.api('/manage/clean/fill-nulls', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            dataset:  this.clean.fillDataset,
+            column:   this.clean.fillColumn,
+            strategy: this.clean.fillStrategy,
+            value:    this.clean.fillValue || null,
+          }),
+        });
+        this.clean.fillResult = `Filled ${r.nulls_filled} null(s) in '${r.column}'.`;
+        await this.loadDatasets();
+        if (this.preview?.dataset === this.clean.fillDataset) await this.previewDataset(this.clean.fillDataset);
+      } catch(e) { this.clean.fillError = e.message; }
+    },
+
+    async filterRows() {
+      this.clean.filterResult = ''; this.clean.filterError = '';
+      try {
+        const r = await this.api('/manage/clean/filter-rows', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            dataset:    this.clean.filterDataset,
+            sql_filter: this.clean.filterSQL,
+          }),
+        });
+        this.clean.filterResult = `Kept ${r.rows_after.toLocaleString()} rows, removed ${r.removed.toLocaleString()}.`;
+        await this.loadDatasets();
+        if (this.preview?.dataset === this.clean.filterDataset) await this.previewDataset(this.clean.filterDataset);
+      } catch(e) { this.clean.filterError = e.message; }
+    },
+
+    async fetchNeighbors() {
+      this.graph.neighborError = ''; this.graph.neighbors = [];
+      try {
+        const r = await this.api(`/graph/player/${encodeURIComponent(this.graph.playerName)}/neighbors?depth=${this.graph.depth}`);
+        this.graph.neighbors = r.neighbors;
+      } catch(e) { this.graph.neighborError = e.message; }
+    },
+
+    async fetchPath() {
+      this.graph.pathError = ''; this.graph.path = null;
+      try {
+        const q = new URLSearchParams({ from_name: this.graph.pathFrom, to_name: this.graph.pathTo });
+        this.graph.path = await this.api(`/graph/path?${q}`);
+      } catch(e) { this.graph.pathError = e.message; }
+    },
+
+    async fetchCollegePipeline() {
+      this.graph.collegeError = ''; this.graph.collegePlayers = [];
+      try {
+        const r = await this.api(`/graph/college/${encodeURIComponent(this.graph.college)}/pipeline`);
+        this.graph.collegePlayers = r.players;
+      } catch(e) { this.graph.collegeError = e.message; }
+    },
+
+    async fetchDraftHistory() {
+      this.graph.draftError = ''; this.graph.draftPicks = [];
+      try {
+        const q = this.graph.draftYear ? `?year=${this.graph.draftYear}` : '';
+        const r = await this.api(`/graph/team/${encodeURIComponent(this.graph.draftTeam)}/drafted${q}`);
+        this.graph.draftPicks = r.picks;
+      } catch(e) { this.graph.draftError = e.message; }
+    },
+  }
+}
+</script>
+</body>
+</html>
