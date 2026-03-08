@@ -63,6 +63,15 @@ def shortest_path(
         _neo4j_error(e)
 
 
+@router.get("/full")
+def full_graph(limit: int = Query(500, ge=1, le=2000)):
+    """Return all nodes and relationships for graph visualization."""
+    try:
+        return gq.get_full_graph(limit)
+    except Exception as e:
+        _neo4j_error(e)
+
+
 @router.get("/college/{name}/pipeline")
 def college_pipeline(name: str):
     """Return all players from a college and their NFL draft outcomes."""

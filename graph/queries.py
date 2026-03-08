@@ -72,6 +72,23 @@ def college_to_nfl_pipeline(college_name: str) -> list[dict]:
     return run_query(cypher, {"college": college_name})
 
 
+def get_full_graph(limit: int = 500) -> dict:
+    """Return all nodes and relationships for graph visualization."""
+    nodes_cypher = """
+        MATCH (n)
+        RETURN id(n) AS id, labels(n)[0] AS type, properties(n) AS props
+        LIMIT $limit
+    """
+    rels_cypher = """
+        MATCH (a)-[r]->(b)
+        RETURN id(a) AS source, id(b) AS target, type(r) AS type, properties(r) AS props
+        LIMIT $limit
+    """
+    nodes = run_query(nodes_cypher, {"limit": limit})
+    edges = run_query(rels_cypher, {"limit": limit})
+    return {"nodes": nodes, "edges": edges}
+
+
 def get_player_profile(player_name: str) -> list[dict]:
     """Return full node properties for a player."""
     cypher = """
