@@ -72,6 +72,17 @@ def college_to_nfl_pipeline(college_name: str) -> list[dict]:
     return run_query(cypher, {"college": college_name})
 
 
+def _sanitize(obj):
+    """Recursively replace NaN/Inf floats with None for JSON safety."""
+    if isinstance(obj, float) and (obj != obj or obj == float("inf") or obj == float("-inf")):
+        return None
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(v) for v in obj]
+    return obj
+
+
 def get_full_graph(limit: int = 500) -> dict:
     """Return all nodes and relationships for graph visualization."""
     nodes_cypher = """
@@ -84,8 +95,8 @@ def get_full_graph(limit: int = 500) -> dict:
         RETURN id(a) AS source, id(b) AS target, type(r) AS type, properties(r) AS props
         LIMIT $limit
     """
-    nodes = run_query(nodes_cypher, {"limit": limit})
-    edges = run_query(rels_cypher, {"limit": limit})
+    nodes = _sanitize(run_query(nodes_cypher, {"limit": limit}))
+    edges = _sanitize(run_query(rels_cypher, {"limit": limit}))
     return {"nodes": nodes, "edges": edges}
 
 
