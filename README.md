@@ -21,8 +21,11 @@ An end-to-end NFL data lake platform with a REST API, SQL query engine (DuckDB),
 - [REST API](#rest-api)
 - [Management UI](#management-ui)
 - [ML Pipeline](#ml-pipeline)
-- [API Reference](#api-reference)
+- [Verification](#verification)
+- [Troubleshooting](#troubleshooting)
 - [Dependencies](#dependencies)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
@@ -115,7 +118,19 @@ nfl-data-platform/
 | `nfl-combine.xls` | HTML with XLS headers | 329 | 2025 NFL Combine player measurements and draft results |
 | `nfl-team-statistics.csv` | CSV | 765 | Season stats for all 32 NFL teams (1999–2022), 56 columns |
 
-> **Note:** Despite the `.xls` extension, `nfl-combine.xls` is an HTML file. The ingestion pipeline handles this automatically using `pd.read_html()`.
+> **Note:** Despite the `.xls` extension, `nfl-combine.xls` is an HTML file with Excel metadata. The ingestion pipeline handles this automatically using `pd.read_html()`, **not** `pd.read_excel()`.
+
+### Data Source Quirks
+
+**`nfl-combine.xls`** key transforms applied during ingestion:
+
+- `Ht` column is a string like `"6-2"` → converted to total inches as a float (e.g., `74.0`)
+- `Drafted (tm/rnd/yr)` is a single string like `"Dallas Cowboys / 7th / 247th pick / 2025"` → split into four columns: `draft_team`, `draft_round`, `draft_pick`, `draft_year`
+- Many metric columns (`Bench`, `3Cone`, `Shuttle`) have high null rates — these are preserved as `NaN` (not a data error)
+
+**`nfl-team-statistics.csv`** notes:
+
+- Four columns (`offense_ave_air_yards`, `offense_ave_yac`, `defense_ave_air_yards`, `defense_ave_yac`) are null for early seasons (roughly pre-2006) — this is expected and not a data error
 
 ---
 
@@ -400,9 +415,101 @@ python ingestion/pipeline.py
 
 ## ML Pipeline
 
-> The ML pipeline (dataset builder + scikit-learn trainer) is defined in `ml/`. Trained models are saved as `.pkl` files with accompanying JSON metrics in `ml/models/`.
+The ML pipeline lives in `ml/` and provides an end-to-end workflow for training machine learning models on curated NFL data.
 
-The `/ml/` API router provides endpoints to trigger training and list saved models.
+### Components
+
+| Module | Purpose |
+|---|---|
+| `ml/dataset_builder.py` | Converts a DuckDB SQL query into a training-ready pandas DataFrame |
+| `ml/trainer.py` | Wraps scikit-learn to train regression or classification models |
+| `ml/models/` | Stores trained `.pkl` model files and accompanying JSON metrics |
+
+### Workflow
+
+1. **Build a dataset** — Use a SQL query against the curated Parquet tables to select features and a target column
+2. **Train a model** — Choose a model type (regression or classification) and target column; the trainer handles train/test splitting, fitting, and evaluation
+3. **Review metrics** — Each trained model produces a JSON file with performance metrics (e.g. R², accuracy, RMSE)
+
+### ML API Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/ml/train` | Train a model on selected columns with a chosen target |
+| `GET` | `/ml/models` | List all trained models and their saved metrics |
+
+Trained models and metrics are saved in the `ml/models/` directory as `.pkl` and `.json` files respectively.
+
+---
+
+## Verification
+
+After setting up the platform, verify each layer is working:
+
+1. **Ingestion** — Run `python ingestion/pipeline.py` and confirm Parquet files appear in `lake/staged/` and `lake/curated/`
+2. **DuckDB** — Query curated data:
+   ```sql
+   SELECT * FROM 'lake/curated/player_profiles.parquet' LIMIT 5;
+   ```
+3. **Neo4j** — Open the Neo4j Browser at `http://localhost:7474` and run:
+   ```cypher
+   MATCH (p:Player)-[:DRAFTED_BY]->(t:Team) RETURN p, t LIMIT 10
+   ```
+4. **FastAPI** — Start the server with `uvicorn api.main:app --reload` and visit `http://localhost:8000/docs` for the Swagger UI
+5. **API Query** — POST to `/query`:
+   ```bash
+   curl -X POST http://localhost:8000/query \
+     -H "Content-Type: application/json" \
+     -d '{"sql": "SELECT position, AVG(forty_yard) FROM players GROUP BY position"}'
+   ```
+6. **Graph Traversal** — GET a player's neighbors:
+   ```bash
+   curl "http://localhost:8000/graph/player/Cam%20Ward/neighbors?depth=2"
+   ```
+
+---
+
+## Troubleshooting
+
+### Neo4j connection refused
+
+Ensure the Neo4j container is running and the port is accessible:
+
+```bash
+docker ps | grep neo4j
+```
+
+If using Docker Compose, check the health status:
+
+```bash
+docker compose ps
+```
+
+Wait for Neo4j to report `healthy` before running `graph/builder.py` or starting the API.
+
+### `nfl-combine.xls` parsing errors
+
+This file is HTML with an `.xls` extension. If you see Excel-related parse errors, ensure the ingestion code uses `pd.read_html()` instead of `pd.read_excel()`. The `lxml` package must be installed for HTML parsing.
+
+### Missing Parquet files
+
+If the curated Parquet files are missing, re-run the ingestion pipeline:
+
+```bash
+python ingestion/pipeline.py
+```
+
+This regenerates both `lake/staged/` and `lake/curated/` Parquet files.
+
+### Docker Compose startup issues
+
+The `entrypoint.sh` script waits for Neo4j to become available before running ingestion. If the API container exits, check its logs:
+
+```bash
+docker compose logs api
+```
+
+Ensure the `.env` file exists (copy from `.env.example`) and that `NEO4J_URI` points to `bolt://neo4j:7687` (the Docker service name, not `localhost`).
 
 ---
 
@@ -422,3 +529,27 @@ The `/ml/` API router provides endpoints to trigger training and list saved mode
 | `python-multipart` | Form/file upload support |
 | `scikit-learn` | ML model training (regression/classification) |
 | `joblib` | Model serialization (`.pkl` files) |
+
+---
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Make your changes and verify they work locally (see [Quick Start](#quick-start))
+4. Commit with a descriptive message (`git commit -m "Add my feature"`)
+5. Push to your fork and open a Pull Request
+
+### Development Notes
+
+- All configuration is centralized in `config.py` — avoid hard-coding paths or credentials elsewhere
+- Neo4j graph operations use idempotent `MERGE` statements — it is always safe to re-run `graph/builder.py`
+- The `/query` endpoint is strictly read-only; SQL mutations are rejected at the API layer
+- The ingestion pipeline is designed to be re-runnable; staged and curated files are overwritten on each run
+- Lake data (`lake/staged/`, `lake/curated/`) and ML model artifacts (`ml/models/*.pkl`, `ml/models/*.json`) are excluded from version control via `.gitignore`
+
+---
+
+## License
+
+This project is provided as-is for educational and personal use.
