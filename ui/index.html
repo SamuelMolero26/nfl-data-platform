@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NFL Data Platform</title>
   <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.4/styles/ag-grid.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.4/styles/ag-theme-alpine.css">
+  <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.4/dist/ag-grid-community.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
@@ -94,21 +97,10 @@
       </div>
       <span class="error" x-text="queryError"></span>
     </div>
-    <template x-if="queryResult">
-      <div class="card">
-        <h2 x-text="`Results — ${queryResult.count} rows`"></h2>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th x-for="col in queryResult.columns" :key="col" x-text="col"></th></tr></thead>
-            <tbody>
-              <template x-for="(row, i) in queryResult.rows" :key="i">
-                <tr><td x-for="col in queryResult.columns" :key="col" x-text="row[col] ?? '—'"></td></tr>
-              </template>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </template>
+    <div class="card" x-show="queryResult" style="display:none">
+      <h2 x-text="queryResult ? `Results — ${queryResult.count} rows` : ''"></h2>
+      <div id="queryGrid" class="ag-theme-alpine-dark" style="height:420px;width:100%"></div>
+    </div>
   </section>
 
   <!-- PLAYERS -->
@@ -314,12 +306,12 @@
             <div class="table-wrap" style="max-height:280px">
               <table>
                 <thead>
-                  <tr><th x-for="col in preview.schema" :key="col.column" x-text="col.column"></th></tr>
+                  <tr><template x-for="col in preview.schema" :key="col.column"><th x-text="col.column"></th></template></tr>
                 </thead>
                 <tbody>
                   <template x-for="(row, i) in preview.preview" :key="i">
                     <tr>
-                      <td x-for="col in preview.schema" :key="col.column" x-text="row[col.column] ?? '—'"></td>
+                      <template x-for="col in preview.schema" :key="col.column"><td x-text="row[col.column] ?? '—'"></td></template>
                     </tr>
                   </template>
                 </tbody>
@@ -441,6 +433,7 @@
 
 <script>
 function app() {
+  let _queryGridApi = null;
   return {
     tab: 'query',
     loading: false,
@@ -490,8 +483,27 @@ function app() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sql: this.sql }),
         });
+        this.$nextTick(() => this.renderQueryGrid());
       } catch(e) { this.queryError = e.message; }
       this.loading = false;
+    },
+
+    renderQueryGrid() {
+      const el = document.getElementById('queryGrid');
+      if (!el || !this.queryResult) return;
+      if (_queryGridApi) { _queryGridApi.destroy(); _queryGridApi = null; }
+      _queryGridApi = agGrid.createGrid(el, {
+        columnDefs: this.queryResult.columns.map(col => ({
+          field: col,
+          sortable: true,
+          filter: true,
+          resizable: true,
+        })),
+        rowData: this.queryResult.rows,
+        pagination: true,
+        paginationPageSize: 50,
+        defaultColDef: { flex: 1, minWidth: 80 },
+      });
     },
 
     downloadCSV({ columns, rows }) {
