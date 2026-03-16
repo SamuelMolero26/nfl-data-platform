@@ -87,7 +87,18 @@
   <section :class="{active: tab==='query'}">
     <div class="card">
       <h2>SQL Query</h2>
-      <p class="label-sm">Available tables: <code>players</code>, <code>team_stats</code></p>
+      <p class="label-sm">Available tables:
+        <template x-if="availableTables.length">
+          <span>
+            <template x-for="(t, i) in availableTables" :key="t">
+              <code x-text="t + (i < availableTables.length - 1 ? ', ' : '')"></code>
+            </template>
+          </span>
+        </template>
+        <template x-if="!availableTables.length">
+          <code>loading…</code>
+        </template>
+      </p>
       <textarea x-model="sql" rows="5" placeholder="SELECT * FROM players LIMIT 10"></textarea>
       <div style="display:flex;gap:0.75rem;align-items:center;margin-top:0.75rem">
         <button class="btn" style="margin:0" @click="runQuery()" :disabled="loading">Run Query</button>
@@ -105,62 +116,353 @@
 
   <!-- PLAYERS -->
   <section :class="{active: tab==='players'}">
-    <div class="card">
-      <h2>Player Explorer</h2>
-      <div class="row">
-        <div>
-          <span class="label-sm">Position</span>
-          <select x-model="playerFilters.position">
-            <option value="">All</option>
-            <template x-for="p in positions" :key="p"><option x-text="p" :value="p"></option></template>
-          </select>
-        </div>
-        <div>
-          <span class="label-sm">School</span>
-          <input x-model="playerFilters.school" placeholder="e.g. Alabama" />
-        </div>
-        <div>
-          <span class="label-sm">Draft Team</span>
-          <input x-model="playerFilters.draft_team" placeholder="e.g. Cowboys" />
-        </div>
-        <div style="flex:0"><button class="btn" @click="loadPlayers()">Filter</button></div>
-      </div>
+
+    <!-- Sub-nav for player views -->
+    <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap">
+      <button class="btn sm" :style="playerView==='browse' ? 'background:#1a4a7a' : ''" @click="playerView='browse'">Browse</button>
+      <button class="btn sm" :style="playerView==='search' ? 'background:#1a4a7a' : ''" @click="playerView='search'">Search by Name</button>
+      <button class="btn sm" :style="playerView==='leaderboard' ? 'background:#1a4a7a' : ''" @click="playerView='leaderboard'">Leaderboards</button>
     </div>
-    <template x-if="playerData.length">
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
-          <h2 x-text="`${playerData.length} Players`"></h2>
-          <button class="btn sm" @click="downloadCSV({columns: Object.keys(playerData[0]), rows: playerData, count: playerData.length})">Download CSV</button>
+
+    <!-- Browse / Filter -->
+    <template x-if="playerView==='browse'">
+      <div>
+        <div class="card">
+          <h2>Player Explorer</h2>
+          <div class="row">
+            <div>
+              <span class="label-sm">Position</span>
+              <select x-model="playerFilters.position">
+                <option value="">All</option>
+                <template x-for="p in positions" :key="p"><option x-text="p" :value="p"></option></template>
+              </select>
+            </div>
+            <div>
+              <span class="label-sm">School</span>
+              <input x-model="playerFilters.school" placeholder="e.g. Alabama" />
+            </div>
+            <div>
+              <span class="label-sm">Draft Team</span>
+              <input x-model="playerFilters.draft_team" placeholder="e.g. Cowboys" />
+            </div>
+            <div style="flex:0"><button class="btn" @click="loadPlayers()">Filter</button></div>
+          </div>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th><th>Pos</th><th>School</th><th>Ht (in)</th><th>Wt</th>
-                <th>40yd</th><th>Vertical</th><th>Bench</th><th>Broad Jump</th>
-                <th>Draft Team</th><th>Round</th><th>Pick</th><th>Year</th>
-              </tr>
-            </thead>
-            <tbody>
-              <template x-for="p in playerData" :key="p.player_name">
-                <tr>
-                  <td x-text="p.player_name"></td>
-                  <td><span class="badge blue" x-text="p.position"></span></td>
-                  <td x-text="p.school ?? '—'"></td>
-                  <td x-text="p.height_in ?? '—'"></td>
-                  <td x-text="p.weight_lbs ?? '—'"></td>
-                  <td x-text="p.forty_yard ?? '—'"></td>
-                  <td x-text="p.vertical_in ?? '—'"></td>
-                  <td x-text="p.bench_reps ?? '—'"></td>
-                  <td x-text="p.broad_jump_in ?? '—'"></td>
-                  <td x-text="p.draft_team ?? '—'"></td>
-                  <td x-text="p.draft_round ?? '—'"></td>
-                  <td x-text="p.draft_pick ?? '—'"></td>
-                  <td x-text="p.draft_year ?? '—'"></td>
-                </tr>
+        <template x-if="playerData.length">
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
+              <h2 x-text="`${playerData.length} Players`"></h2>
+              <button class="btn sm" @click="downloadCSV({columns: Object.keys(playerData[0]), rows: playerData, count: playerData.length})">Download CSV</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th><th>Pos</th><th>School</th><th>Ht (in)</th><th>Wt</th>
+                    <th>40yd</th><th>Vertical</th><th>Bench</th><th>Broad Jump</th>
+                    <th>Draft Team</th><th>Round</th><th>Pick</th><th>Year</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="p in playerData" :key="p.player_name">
+                    <tr style="cursor:pointer" @click="openPlayerProfile(p.player_name)">
+                      <td x-text="p.player_name"></td>
+                      <td><span class="badge blue" x-text="p.position"></span></td>
+                      <td x-text="p.school ?? '—'"></td>
+                      <td x-text="p.height_in ?? '—'"></td>
+                      <td x-text="p.weight_lbs ?? '—'"></td>
+                      <td x-text="p.forty_yard ?? '—'"></td>
+                      <td x-text="p.vertical_in ?? '—'"></td>
+                      <td x-text="p.bench_reps ?? '—'"></td>
+                      <td x-text="p.broad_jump_in ?? '—'"></td>
+                      <td x-text="p.draft_team ?? '—'"></td>
+                      <td x-text="p.draft_round ?? '—'"></td>
+                      <td x-text="p.draft_pick ?? '—'"></td>
+                      <td x-text="p.draft_year ?? '—'"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </template>
+      </div>
+    </template>
+
+    <!-- Search by Name -->
+    <template x-if="playerView==='search'">
+      <div>
+        <div class="card">
+          <h2>Search Players by Name</h2>
+          <div class="row">
+            <div>
+              <span class="label-sm">Player Name</span>
+              <input x-model="playerSearch.name" placeholder="e.g. Patrick Mahomes" @keydown.enter="searchPlayers()" />
+            </div>
+            <div style="flex:0"><button class="btn" @click="searchPlayers()">Search</button></div>
+          </div>
+          <span class="error" x-text="playerSearch.error"></span>
+        </div>
+        <template x-if="playerSearch.results.length">
+          <div class="card">
+            <h2 x-text="`${playerSearch.results.length} result(s)`"></h2>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Name</th><th>Pos</th><th>Team</th><th>College</th><th>First Season</th><th>Last Season</th><th>Player ID</th></tr></thead>
+                <tbody>
+                  <template x-for="p in playerSearch.results" :key="p.player_id ?? p.player_name">
+                    <tr style="cursor:pointer" @click="openPlayerProfileById(p.player_id)">
+                      <td x-text="p.player_name"></td>
+                      <td><span class="badge blue" x-text="p.position ?? '—'"></span></td>
+                      <td x-text="p.team ?? '—'"></td>
+                      <td x-text="p.college ?? p.school ?? '—'"></td>
+                      <td x-text="p.first_season ?? '—'"></td>
+                      <td x-text="p.last_season ?? '—'"></td>
+                      <td style="font-size:0.7rem;color:#718096" x-text="p.player_id ?? '—'"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </template>
+      </div>
+    </template>
+
+    <!-- Leaderboards -->
+    <template x-if="playerView==='leaderboard'">
+      <div>
+        <!-- Athletic leaderboard -->
+        <div class="card">
+          <h2>Athletic Score Leaderboard</h2>
+          <div class="row">
+            <div>
+              <span class="label-sm">Position</span>
+              <select x-model="lb.athletic.position">
+                <option value="">All</option>
+                <template x-for="p in positions" :key="p"><option x-text="p" :value="p"></option></template>
+              </select>
+            </div>
+            <div>
+              <span class="label-sm">Metric</span>
+              <select x-model="lb.athletic.metric">
+                <option value="speed_score">Speed Score</option>
+                <option value="agility_score">Agility Score</option>
+                <option value="burst_score">Burst Score</option>
+                <option value="strength_score">Strength Score</option>
+                <option value="size_score">Size Score</option>
+              </select>
+            </div>
+            <div style="flex:0"><button class="btn" @click="loadAthleticLeaderboard()">Load</button></div>
+          </div>
+          <span class="error" x-text="lb.athletic.error"></span>
+          <template x-if="lb.athletic.players.length">
+            <div class="table-wrap" style="margin-top:1rem">
+              <table>
+                <thead><tr><th>#</th><th>Name</th><th>Pos</th><th x-text="lb.athletic.metric.replace('_',' ')"></th><th>Ht</th><th>Wt</th><th>40yd</th><th>Draft Year</th></tr></thead>
+                <tbody>
+                  <template x-for="(p, i) in lb.athletic.players" :key="p.player_name">
+                    <tr>
+                      <td x-text="i+1"></td>
+                      <td x-text="p.player_name"></td>
+                      <td><span class="badge blue" x-text="p.position"></span></td>
+                      <td x-text="p[lb.athletic.metric]?.toFixed(2) ?? '—'"></td>
+                      <td x-text="p.height_in ?? '—'"></td>
+                      <td x-text="p.weight_lbs ?? '—'"></td>
+                      <td x-text="p.forty_yard ?? '—'"></td>
+                      <td x-text="p.draft_year ?? '—'"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </template>
+        </div>
+
+        <!-- Production leaderboard -->
+        <div class="card">
+          <h2>Production Score Leaderboard</h2>
+          <div class="row">
+            <div>
+              <span class="label-sm">Position</span>
+              <select x-model="lb.production.position">
+                <option value="">All</option>
+                <template x-for="p in positions" :key="p"><option x-text="p" :value="p"></option></template>
+              </select>
+            </div>
+            <div>
+              <span class="label-sm">Season</span>
+              <input type="number" x-model="lb.production.season" placeholder="e.g. 2022" min="2000" max="2030" />
+            </div>
+            <div style="flex:0"><button class="btn" @click="loadProductionLeaderboard()">Load</button></div>
+          </div>
+          <span class="error" x-text="lb.production.error"></span>
+          <template x-if="lb.production.players.length">
+            <div class="table-wrap" style="margin-top:1rem">
+              <table>
+                <thead><tr><th>#</th><th>Name</th><th>Pos</th><th>Season</th><th>Prod. Score</th><th>EPA/Game</th><th>Snap Share</th><th>GP</th></tr></thead>
+                <tbody>
+                  <template x-for="(p, i) in lb.production.players" :key="`${p.player_id}-${p.season}`">
+                    <tr>
+                      <td x-text="i+1"></td>
+                      <td x-text="p.player_name ?? p.player_id"></td>
+                      <td><span class="badge blue" x-text="p.position ?? '—'"></span></td>
+                      <td x-text="p.season"></td>
+                      <td x-text="p.nfl_production_score?.toFixed(3) ?? '—'"></td>
+                      <td x-text="p.epa_per_game?.toFixed(2) ?? '—'"></td>
+                      <td x-text="p.snap_share != null ? (p.snap_share*100).toFixed(1)+'%' : '—'"></td>
+                      <td x-text="p.games_played ?? '—'"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </template>
+        </div>
+
+        <!-- Draft value leaderboard -->
+        <div class="card">
+          <h2>Draft Value Leaderboard</h2>
+          <div class="row">
+            <div>
+              <span class="label-sm">Round</span>
+              <select x-model="lb.draftValue.round">
+                <option value="">All</option>
+                <option value="1">Round 1</option>
+                <option value="2">Round 2</option>
+                <option value="3">Round 3</option>
+                <option value="4">Round 4</option>
+                <option value="5">Round 5</option>
+                <option value="6">Round 6</option>
+                <option value="7">Round 7</option>
+              </select>
+            </div>
+            <div>
+              <span class="label-sm">Draft Year</span>
+              <input type="number" x-model="lb.draftValue.season" placeholder="e.g. 2010" min="1990" max="2030" />
+            </div>
+            <div style="flex:0"><button class="btn" @click="loadDraftValueLeaderboard()">Load</button></div>
+          </div>
+          <span class="error" x-text="lb.draftValue.error"></span>
+          <template x-if="lb.draftValue.players.length">
+            <div class="table-wrap" style="margin-top:1rem">
+              <table>
+                <thead><tr><th>#</th><th>Name</th><th>Pos</th><th>Year</th><th>Rnd</th><th>Pick</th><th>Value Score</th><th>Pct</th><th>CarAV</th><th>Pro Bowls</th></tr></thead>
+                <tbody>
+                  <template x-for="(p, i) in lb.draftValue.players" :key="`${p.player_name}-${p.pick}`">
+                    <tr>
+                      <td x-text="i+1"></td>
+                      <td x-text="p.player_name"></td>
+                      <td><span class="badge blue" x-text="p.position ?? '—'"></span></td>
+                      <td x-text="p.draft_year ?? '—'"></td>
+                      <td x-text="p.round ?? '—'"></td>
+                      <td x-text="p.pick ?? '—'"></td>
+                      <td x-text="p.draft_value_score?.toFixed(3) ?? '—'"></td>
+                      <td x-text="p.draft_value_percentile != null ? p.draft_value_percentile.toFixed(1)+'%' : '—'"></td>
+                      <td x-text="p.car_av ?? '—'"></td>
+                      <td x-text="p.probowls ?? '—'"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </template>
+        </div>
+      </div>
+    </template>
+
+    <!-- Player Profile Modal -->
+    <template x-if="playerProfile.open">
+      <div style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;overflow-y:auto;padding:2rem">
+        <div style="background:#1a1f2e;border:1px solid #2d3748;border-radius:12px;max-width:760px;margin:0 auto;padding:1.5rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+            <h2 x-text="playerProfile.data?.player_name ?? playerProfile.data?.player_id ?? 'Player Profile'"></h2>
+            <button class="btn sm" @click="playerProfile.open=false">✕ Close</button>
+          </div>
+          <span class="error" x-text="playerProfile.error"></span>
+          <template x-if="playerProfile.loading">
+            <p class="label-sm">Loading…</p>
+          </template>
+          <template x-if="playerProfile.data && !playerProfile.loading">
+            <div>
+              <!-- Identity -->
+              <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;font-size:0.85rem">
+                <span><strong>Position:</strong> <span class="badge blue" x-text="playerProfile.data.position ?? '—'"></span></span>
+                <span><strong>Team:</strong> <span x-text="playerProfile.data.team ?? '—'"></span></span>
+                <span><strong>College:</strong> <span x-text="playerProfile.data.college ?? '—'"></span></span>
+                <span><strong>Seasons:</strong> <span x-text="(playerProfile.data.first_season && playerProfile.data.last_season) ? playerProfile.data.first_season + ' – ' + playerProfile.data.last_season : '—'"></span></span>
+              </div>
+
+              <!-- Athletic scores -->
+              <template x-if="playerProfile.data.athletic">
+                <div class="card" style="margin-bottom:0.75rem">
+                  <h2>Athletic Scores</h2>
+                  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:0.5rem;font-size:0.8rem">
+                    <template x-for="key in ['speed_score','agility_score','burst_score','strength_score','size_score']" :key="key">
+                      <div style="background:#0f1117;border-radius:6px;padding:0.5rem;text-align:center">
+                        <div style="color:#718096;font-size:0.7rem" x-text="key.replace('_',' ')"></div>
+                        <div style="color:#90cdf4;font-size:1rem;font-weight:700" x-text="playerProfile.data.athletic[key]?.toFixed(2) ?? '—'"></div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
               </template>
-            </tbody>
-          </table>
+
+              <!-- Production history -->
+              <template x-if="playerProfile.data.production && playerProfile.data.production.length">
+                <div class="card" style="margin-bottom:0.75rem">
+                  <h2>Season Production</h2>
+                  <div class="table-wrap" style="max-height:200px">
+                    <table>
+                      <thead><tr><th>Season</th><th>Pos</th><th>Prod. Score</th><th>EPA/Game</th><th>Snap Share</th><th>GP</th></tr></thead>
+                      <tbody>
+                        <template x-for="s in playerProfile.data.production" :key="s.season">
+                          <tr>
+                            <td x-text="s.season"></td>
+                            <td x-text="s.position ?? '—'"></td>
+                            <td x-text="s.nfl_production_score?.toFixed(3) ?? '—'"></td>
+                            <td x-text="s.epa_per_game?.toFixed(2) ?? '—'"></td>
+                            <td x-text="s.snap_share != null ? (s.snap_share*100).toFixed(1)+'%' : '—'"></td>
+                            <td x-text="s.games_played ?? '—'"></td>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Durability -->
+              <template x-if="playerProfile.data.durability">
+                <div class="card" style="margin-bottom:0.75rem">
+                  <h2>Durability</h2>
+                  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.5rem;font-size:0.8rem">
+                    <template x-for="key in ['durability_score','games_played_rate','injury_frequency','career_seasons']" :key="key">
+                      <div style="background:#0f1117;border-radius:6px;padding:0.5rem;text-align:center">
+                        <div style="color:#718096;font-size:0.7rem" x-text="key.replace(/_/g,' ')"></div>
+                        <div style="color:#68d391;font-size:1rem;font-weight:700" x-text="playerProfile.data.durability[key] != null ? (typeof playerProfile.data.durability[key]==='number' ? playerProfile.data.durability[key].toFixed(2) : playerProfile.data.durability[key]) : '—'"></div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Draft value -->
+              <template x-if="playerProfile.data.draft_value">
+                <div class="card">
+                  <h2>Draft Value</h2>
+                  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:0.5rem;font-size:0.8rem">
+                    <template x-for="key in ['draft_year','round','pick','car_av','draft_value_score','draft_value_percentile']" :key="key">
+                      <div style="background:#0f1117;border-radius:6px;padding:0.5rem;text-align:center">
+                        <div style="color:#718096;font-size:0.7rem" x-text="key.replace(/_/g,' ')"></div>
+                        <div style="color:#f6e05e;font-size:1rem;font-weight:700" x-text="playerProfile.data.draft_value[key] != null ? (typeof playerProfile.data.draft_value[key]==='number' ? playerProfile.data.draft_value[key].toFixed(2) : playerProfile.data.draft_value[key]) : '—'"></div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
         </div>
       </div>
     </template>
@@ -281,6 +583,28 @@
           <button class="btn" @click="filterRows()">Apply Filter</button>
           <span class="success" x-text="clean.filterResult"></span>
           <span class="error" x-text="clean.filterError"></span>
+        </div>
+
+        <div class="card">
+          <h2>Drop Columns</h2>
+          <span class="label-sm">Dataset</span>
+          <input x-model="clean.dropDataset" placeholder="e.g. combine" />
+          <span class="label-sm" style="margin-top:0.5rem">Columns (comma-separated)</span>
+          <input x-model="clean.dropColumns" placeholder="e.g. three_cone, shuttle" />
+          <button class="btn" @click="dropColumns()">Drop</button>
+          <span class="success" x-text="clean.dropResult"></span>
+          <span class="error" x-text="clean.dropError"></span>
+        </div>
+
+        <div class="card">
+          <h2>Rename Columns</h2>
+          <span class="label-sm">Dataset</span>
+          <input x-model="clean.renameDataset" placeholder="e.g. combine" />
+          <span class="label-sm" style="margin-top:0.5rem">Rename map (JSON, e.g. {"old":"new"})</span>
+          <textarea x-model="clean.renameMap" rows="3" placeholder='{"old_col": "new_col"}'></textarea>
+          <button class="btn" @click="renameColumns()">Rename</button>
+          <span class="success" x-text="clean.renameResult"></span>
+          <span class="error" x-text="clean.renameError"></span>
         </div>
       </div>
 
@@ -426,6 +750,64 @@
           </div>
         </template>
       </div>
+
+      <div class="card">
+        <h2>Player Career Path</h2>
+        <span class="label-sm">Player ID (gsis_id)</span>
+        <input x-model="graph.careerPlayerId" placeholder="e.g. 00-0023459" />
+        <button class="btn" @click="fetchCareerPath()">Load Career</button>
+        <span class="error" x-text="graph.careerError"></span>
+        <template x-if="graph.careerData">
+          <div style="margin-top:1rem;font-size:0.82rem">
+            <p class="label-sm" x-text="`Player: ${graph.careerData.player_name ?? graph.careerData.player_id}`"></p>
+            <template x-if="graph.careerData.seasons && graph.careerData.seasons.length">
+              <div class="table-wrap" style="max-height:220px;margin-top:0.5rem">
+                <table>
+                  <thead><tr><th>Season</th><th>Team</th><th>Snaps</th></tr></thead>
+                  <tbody>
+                    <template x-for="s in graph.careerData.seasons" :key="s.season">
+                      <tr>
+                        <td x-text="s.season"></td>
+                        <td x-text="s.team ?? '—'"></td>
+                        <td x-text="s.offense_snaps ?? '—'"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+            <template x-if="!graph.careerData.seasons || !graph.careerData.seasons.length">
+              <p class="label-sm" style="margin-top:0.5rem">No season data available for this player.</p>
+            </template>
+          </div>
+        </template>
+      </div>
+
+      <div class="card">
+        <h2>Team Roster (Graph)</h2>
+        <span class="label-sm">Team Abbreviation</span>
+        <input x-model="graph.rosterTeam" placeholder="e.g. DAL" />
+        <span class="label-sm" style="margin-top:0.5rem">Season (optional)</span>
+        <input type="number" x-model="graph.rosterSeason" placeholder="e.g. 2022" />
+        <button class="btn" @click="fetchTeamRoster()">Load Roster</button>
+        <span class="error" x-text="graph.rosterError"></span>
+        <template x-if="graph.rosterPlayers.length">
+          <div class="table-wrap" style="margin-top:1rem;max-height:280px">
+            <table>
+              <thead><tr><th>Player</th><th>Pos</th><th>Since</th></tr></thead>
+              <tbody>
+                <template x-for="p in graph.rosterPlayers" :key="p.player_id ?? p.player_name">
+                  <tr>
+                    <td x-text="p.player_name ?? p.player_id"></td>
+                    <td x-text="p.position ?? '—'"></td>
+                    <td x-text="p.since ?? '—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </div>
     </div>
   </section>
 
@@ -438,13 +820,26 @@ function app() {
     tab: 'query',
     loading: false,
 
+    availableTables: [],
+
     sql: "SELECT position, COUNT(*) as count, ROUND(AVG(forty_yard),3) as avg_40yd\nFROM players\nWHERE forty_yard IS NOT NULL\nGROUP BY position\nORDER BY avg_40yd",
     queryResult: null,
     queryError: '',
 
+    playerView: 'browse',
     playerFilters: { position: '', school: '', draft_team: '' },
     playerData: [],
     positions: ['C','CB','DT','EDGE','G','LB','OT','QB','RB','SAF','TE','WR'],
+
+    playerSearch: { name: '', results: [], error: '' },
+
+    playerProfile: { open: false, loading: false, data: null, error: '' },
+
+    lb: {
+      athletic:    { position: '', metric: 'speed_score', players: [], error: '' },
+      production:  { position: '', season: '', players: [], error: '' },
+      draftValue:  { round: '', season: '', players: [], error: '' },
+    },
 
     teamList: [],
     selectedTeam: '',
@@ -457,6 +852,8 @@ function app() {
     clean: {
       fillDataset:'', fillColumn:'', fillStrategy:'mean', fillValue:'', fillResult:'', fillError:'',
       filterDataset:'', filterSQL:'', filterResult:'', filterError:'',
+      dropDataset:'', dropColumns:'', dropResult:'', dropError:'',
+      renameDataset:'', renameMap:'', renameResult:'', renameError:'',
     },
 
     graph: {
@@ -464,9 +861,16 @@ function app() {
       pathFrom:'', pathTo:'', path:null, pathError:'',
       college:'', collegePlayers:[], collegeError:'',
       draftTeam:'', draftYear:'', draftPicks:[], draftError:'',
+      careerPlayerId:'', careerData:null, careerError:'',
+      rosterTeam:'', rosterSeason:'', rosterPlayers:[], rosterError:'',
     },
 
-    async init() {},
+    async init() {
+      try {
+        const t = await this.api('/query/tables');
+        this.availableTables = t.tables || [];
+      } catch(_) {}
+    },
 
     async api(path, opts={}) {
       const res = await fetch(path, opts);
@@ -532,6 +936,78 @@ function app() {
       this.playerData = data.players;
     },
 
+    async searchPlayers() {
+      this.playerSearch.error = ''; this.playerSearch.results = [];
+      if (!this.playerSearch.name.trim()) return;
+      try {
+        const data = await this.api(`/players/search?name=${encodeURIComponent(this.playerSearch.name)}&limit=50`);
+        this.playerSearch.results = data.players;
+      } catch(e) { this.playerSearch.error = e.message; }
+    },
+
+    async openPlayerProfile(playerName) {
+      this.playerProfile = { open: true, loading: true, data: null, error: '' };
+      try {
+        // First search to get the player_id
+        const s = await this.api(`/players/search?name=${encodeURIComponent(playerName)}&limit=1`);
+        const pid = s.players?.[0]?.player_id;
+        if (pid) {
+          await this.openPlayerProfileById(pid);
+        } else {
+          // Fall back to combine data only
+          const d = await this.api(`/players/${encodeURIComponent(playerName)}`);
+          this.playerProfile.data = d.players?.[0] ?? null;
+          this.playerProfile.loading = false;
+        }
+      } catch(e) {
+        this.playerProfile.error = e.message;
+        this.playerProfile.loading = false;
+      }
+    },
+
+    async openPlayerProfileById(playerId) {
+      if (!playerId) return;
+      this.playerProfile = { open: true, loading: true, data: null, error: '' };
+      try {
+        this.playerProfile.data = await this.api(`/players/id/${encodeURIComponent(playerId)}/profile`);
+      } catch(e) {
+        this.playerProfile.error = e.message;
+      }
+      this.playerProfile.loading = false;
+    },
+
+    async loadAthleticLeaderboard() {
+      this.lb.athletic.error = ''; this.lb.athletic.players = [];
+      try {
+        const q = new URLSearchParams({ metric: this.lb.athletic.metric, limit: '25' });
+        if (this.lb.athletic.position) q.set('position', this.lb.athletic.position);
+        const r = await this.api(`/players/leaderboard/athletic?${q}`);
+        this.lb.athletic.players = r.players;
+      } catch(e) { this.lb.athletic.error = e.message; }
+    },
+
+    async loadProductionLeaderboard() {
+      this.lb.production.error = ''; this.lb.production.players = [];
+      try {
+        const q = new URLSearchParams({ limit: '25' });
+        if (this.lb.production.position) q.set('position', this.lb.production.position);
+        if (this.lb.production.season)   q.set('season', this.lb.production.season);
+        const r = await this.api(`/players/leaderboard/production?${q}`);
+        this.lb.production.players = r.players;
+      } catch(e) { this.lb.production.error = e.message; }
+    },
+
+    async loadDraftValueLeaderboard() {
+      this.lb.draftValue.error = ''; this.lb.draftValue.players = [];
+      try {
+        const q = new URLSearchParams({ limit: '25' });
+        if (this.lb.draftValue.round)  q.set('round', this.lb.draftValue.round);
+        if (this.lb.draftValue.season) q.set('season', this.lb.draftValue.season);
+        const r = await this.api(`/players/leaderboard/draft-value?${q}`);
+        this.lb.draftValue.players = r.players;
+      } catch(e) { this.lb.draftValue.error = e.message; }
+    },
+
     async loadTeams() {
       const data = await this.api('/teams');
       this.teamList = data.teams;
@@ -590,6 +1066,44 @@ function app() {
       } catch(e) { this.clean.filterError = e.message; }
     },
 
+    async dropColumns() {
+      this.clean.dropResult = ''; this.clean.dropError = '';
+      if (!this.clean.dropDataset.trim() || !this.clean.dropColumns.trim()) {
+        this.clean.dropError = 'Dataset and columns are required.'; return;
+      }
+      try {
+        const cols = this.clean.dropColumns.split(',').map(c => c.trim()).filter(Boolean);
+        const r = await this.api('/manage/clean/drop-columns', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dataset: this.clean.dropDataset, columns: cols }),
+        });
+        this.clean.dropResult = `Dropped: ${r.dropped.join(', ')}. Remaining: ${r.remaining_columns.length} column(s).`;
+        await this.loadDatasets();
+        if (this.preview?.dataset === this.clean.dropDataset) await this.previewDataset(this.clean.dropDataset);
+      } catch(e) { this.clean.dropError = e.message; }
+    },
+
+    async renameColumns() {
+      this.clean.renameResult = ''; this.clean.renameError = '';
+      if (!this.clean.renameDataset.trim() || !this.clean.renameMap.trim()) {
+        this.clean.renameError = 'Dataset and rename map are required.'; return;
+      }
+      let renameMap;
+      try { renameMap = JSON.parse(this.clean.renameMap); }
+      catch(_) { this.clean.renameError = 'Invalid JSON in rename map.'; return; }
+      try {
+        const r = await this.api('/manage/clean/rename', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dataset: this.clean.renameDataset, rename_map: renameMap }),
+        });
+        this.clean.renameResult = `Renamed ${Object.keys(r.renamed).length} column(s). Total: ${r.columns.length}.`;
+        await this.loadDatasets();
+        if (this.preview?.dataset === this.clean.renameDataset) await this.previewDataset(this.clean.renameDataset);
+      } catch(e) { this.clean.renameError = e.message; }
+    },
+
     async fetchNeighbors() {
       this.graph.neighborError = ''; this.graph.neighbors = [];
       try {
@@ -601,7 +1115,7 @@ function app() {
     async fetchPath() {
       this.graph.pathError = ''; this.graph.path = null;
       try {
-        const q = new URLSearchParams({ from_name: this.graph.pathFrom, to_name: this.graph.pathTo });
+        const q = new URLSearchParams({ from_id: this.graph.pathFrom, to_id: this.graph.pathTo });
         this.graph.path = await this.api(`/graph/path?${q}`);
       } catch(e) { this.graph.pathError = e.message; }
     },
@@ -621,6 +1135,24 @@ function app() {
         const r = await this.api(`/graph/team/${encodeURIComponent(this.graph.draftTeam)}/drafted${q}`);
         this.graph.draftPicks = r.picks;
       } catch(e) { this.graph.draftError = e.message; }
+    },
+
+    async fetchCareerPath() {
+      this.graph.careerError = ''; this.graph.careerData = null;
+      if (!this.graph.careerPlayerId.trim()) { this.graph.careerError = 'Player ID is required.'; return; }
+      try {
+        this.graph.careerData = await this.api(`/graph/player/${encodeURIComponent(this.graph.careerPlayerId)}/career`);
+      } catch(e) { this.graph.careerError = e.message; }
+    },
+
+    async fetchTeamRoster() {
+      this.graph.rosterError = ''; this.graph.rosterPlayers = [];
+      if (!this.graph.rosterTeam.trim()) { this.graph.rosterError = 'Team abbreviation is required.'; return; }
+      try {
+        const q = this.graph.rosterSeason ? `?season=${this.graph.rosterSeason}` : '';
+        const r = await this.api(`/graph/team/${encodeURIComponent(this.graph.rosterTeam.toUpperCase())}/roster${q}`);
+        this.graph.rosterPlayers = r.roster;
+      } catch(e) { this.graph.rosterError = e.message; }
     },
   }
 }
