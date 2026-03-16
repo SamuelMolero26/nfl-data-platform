@@ -89,11 +89,7 @@
       <h2>SQL Query</h2>
       <p class="label-sm">Available tables:
         <template x-if="availableTables.length">
-          <span>
-            <template x-for="(t, i) in availableTables" :key="t">
-              <code x-text="t + (i < availableTables.length - 1 ? ', ' : '')"></code>
-            </template>
-          </span>
+          <code x-text="availableTables.join(', ')"></code>
         </template>
         <template x-if="!availableTables.length">
           <code>loading…</code>
@@ -165,7 +161,7 @@
                 </thead>
                 <tbody>
                   <template x-for="p in playerData" :key="p.player_name">
-                    <tr style="cursor:pointer" @click="openPlayerProfile(p.player_name)">
+                    <tr style="cursor:pointer" @click="p.player_id ? openPlayerProfileById(p.player_id) : openPlayerProfile(p.player_name)">
                       <td x-text="p.player_name"></td>
                       <td><span class="badge blue" x-text="p.position"></span></td>
                       <td x-text="p.school ?? '—'"></td>
@@ -211,7 +207,7 @@
                 <thead><tr><th>Name</th><th>Pos</th><th>Team</th><th>College</th><th>First Season</th><th>Last Season</th><th>Player ID</th></tr></thead>
                 <tbody>
                   <template x-for="p in playerSearch.results" :key="p.player_id ?? p.player_name">
-                    <tr style="cursor:pointer" @click="openPlayerProfileById(p.player_id)">
+                    <tr :style="p.player_id ? 'cursor:pointer' : ''" @click="p.player_id && openPlayerProfileById(p.player_id)">
                       <td x-text="p.player_name"></td>
                       <td><span class="badge blue" x-text="p.position ?? '—'"></span></td>
                       <td x-text="p.team ?? '—'"></td>
