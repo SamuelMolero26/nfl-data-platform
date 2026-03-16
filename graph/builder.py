@@ -179,8 +179,8 @@ def _build_team_nodes(session: Session) -> None:
               t.conference   = row.conference,
               t.division     = row.division,
               t.is_active    = row.is_active,
-              t.color        = row.team_color,
-              t.color2       = row.team_color2
+              t.color        = row.primary_color,
+              t.color2       = row.secondary_color
         """,
         rows=records,
     )
@@ -246,8 +246,7 @@ def _build_game_nodes(session: Session) -> None:
               g.home_score  = toInteger(row.home_score),
               g.away_score  = toInteger(row.away_score),
               g.result      = row.result,
-              g.stadium     = row.stadium,
-              g.location    = row.location
+              g.stadium     = row.stadium
 
         FOREACH (_ IN CASE WHEN row.home_team IS NOT NULL THEN [1] ELSE [] END |
             MERGE (ht:Team {abbreviation: row.home_team})

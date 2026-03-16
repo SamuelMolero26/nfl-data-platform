@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from db.neo4j_client import run_query
 
 
-# Helper <- for sannity check
+# Helper <- for sanity check
 def _sanitize(obj):
     """Recursively replace NaN/Inf floats with None for JSON safety."""
     if isinstance(obj, float) and (
@@ -152,8 +152,7 @@ def get_team_draft_history(team_abbr: str, year: int | None = None) -> list[dict
     if year:
         cypher = """
             MATCH (p:Player)-[r:SELECTED_IN_DRAFT]->(d:DraftClass)
-            MATCH (p)-[db:DRAFTED_BY]->(t:Team {abbreviation: $team})
-            WHERE d.year = $year
+            WHERE r.team = $team AND d.year = $year
             RETURN p.player_name AS player, p.position AS position,
                    r.round AS round, r.pick AS pick, d.year AS year,
                    r.draft_value_score AS draft_value_score,
@@ -164,7 +163,7 @@ def get_team_draft_history(team_abbr: str, year: int | None = None) -> list[dict
     else:
         cypher = """
             MATCH (p:Player)-[r:SELECTED_IN_DRAFT]->(d:DraftClass)
-            MATCH (p)-[db:DRAFTED_BY]->(t:Team {abbreviation: $team})
+            WHERE r.team = $team
             RETURN p.player_name AS player, p.position AS position,
                    r.round AS round, r.pick AS pick, d.year AS year,
                    r.draft_value_score AS draft_value_score,
@@ -221,17 +220,19 @@ def shortest_path(from_id: str, to_id: str) -> list[dict]:
     cypher = """
         MATCH (a)
         WHERE a.player_id = $from_id
-            OR a.name = $from_id
+            OR a.player_name = $from_id
+            OR a.full_name = $from_id
             OR a.abbreviation = $from_id
         WITH a
         MATCH (b)
         WHERE b.player_id = $to_id
-            OR b.name = $to_id
+            OR b.player_name = $to_id
+            OR b.full_name = $to_id
             OR b.abbreviation = $to_id
         MATCH path = shortestPath((a)-[*..6]-(b))
         RETURN [n IN nodes(path) | {
             labels: labels(n),
-            id: coalesce(n.player_id, n.name, n.abbreviation, toString(n.year))
+            id: coalesce(n.player_id, n.player_name, n.full_name, n.abbreviation, toString(n.year))
         }] AS path_nodes,
                length(path) AS hops
     """
@@ -243,10 +244,9 @@ def college_to_nfl_pipeline(college_name: str) -> list[dict]:
     cypher = """
         MATCH (p:Player)-[:ATTENDED]->(c:College {name: $college})
         OPTIONAL MATCH (p)-[r:SELECTED_IN_DRAFT]->(d:DraftClass)
-        OPTIONAL MATCH (p)-[:DRAFTED_BY]->(t:Team)
         RETURN p.player_name        AS player,
                p.position          AS position,
-               t.abbreviation      AS drafted_by,
+               r.team              AS drafted_by,
                r.round             AS round,
                r.pick              AS pick,
                d.year              AS year,

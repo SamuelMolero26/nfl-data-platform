@@ -147,13 +147,16 @@ def get_player_full_profile(player_id: str):
 
     # Production (all seasons)
     if _gold_table_exists("player_production_profiles"):
-        prod_df = duckdb_client.execute(f"""
+        prod_df = duckdb_client.execute(
+            """
             SELECT season, snap_share, epa_per_game, passing_cpoe,
                    target_share, nfl_production_score, games_played
             FROM player_production_profiles
-            WHERE player_id = '{player_id}'
+            WHERE player_id = ?
             ORDER BY season DESC
-            """)
+            """,
+            [player_id],
+        )
         result["production"] = duckdb_client.df_to_records(prod_df)
 
     # Durability
@@ -168,13 +171,16 @@ def get_player_full_profile(player_id: str):
 
     # Draft value
     if _gold_table_exists("draft_value_history"):
-        dv_df = duckdb_client.execute(f"""
+        dv_df = duckdb_client.execute(
+            """
             SELECT season AS draft_year, round, pick, car_av,
                    draft_value_score, draft_value_percentile
             FROM draft_value_history
-            WHERE player_id = '{player_id}'
+            WHERE player_id = ?
             LIMIT 1
-            """)
+            """,
+            [player_id],
+        )
         result["draft_value"] = (
             duckdb_client.df_to_records(dv_df)[0] if not dv_df.empty else None
         )
@@ -191,7 +197,8 @@ def get_player_athletic(player_id: str):
         )
 
     df = duckdb_client.execute(
-        "SELECT 1 FROM master_players WHERE player_id = ? LIMIT 1", [player_id]
+        "SELECT * FROM player_athletic_profiles WHERE player_id = ? LIMIT 1",
+        [player_id],
     )
 
     if df.empty:
@@ -212,13 +219,16 @@ def get_player_production(player_id: str):
             status_code=503, detail="player_production_profiles not yet built."
         )
 
-    df = duckdb_client.execute(f"""
+    df = duckdb_client.execute(
+        """
         SELECT season, position, snap_share, epa_per_game, passing_cpoe,
                target_share, nfl_production_score, games_played, games_with_snaps
         FROM player_production_profiles
-        WHERE player_id = '{player_id}'
+        WHERE player_id = ?
         ORDER BY season DESC
-        """)
+        """,
+        [player_id],
+    )
     if df.empty:
         raise HTTPException(
             status_code=404, detail=f"No production data for '{player_id}'."
@@ -238,7 +248,7 @@ def get_player_durability(player_id: str):
         )
 
     df = duckdb_client.execute(
-        "SELECT * FROM player_athletic_profiles WHERE player_id = ? LIMIT 1",
+        "SELECT * FROM player_durability_profiles WHERE player_id = ? LIMIT 1",
         [player_id],
     )
 
@@ -260,14 +270,17 @@ def get_player_draft_value(player_id: str):
             status_code=503, detail="draft_value_history not yet built."
         )
 
-    df = duckdb_client.execute(f"""
+    df = duckdb_client.execute(
+        """
         SELECT player_name, season AS draft_year, team, round, pick, position,
                car_av, draft_value_score, draft_value_percentile,
                allpro, probowls, games, seasons_started
         FROM draft_value_history
-        WHERE player_id = '{player_id}'
+        WHERE player_id = ?
         LIMIT 1
-        """)
+        """,
+        [player_id],
+    )
     if df.empty:
         raise HTTPException(
             status_code=404, detail=f"No draft value data for '{player_id}'."
@@ -304,19 +317,21 @@ def athletic_leaderboard(
             status_code=400, detail=f"metric must be one of {sorted(allowed)}"
         )
 
-    where = (
-        f"WHERE position = '{position}'" if position else f"WHERE {metric} IS NOT NULL"
-    )
+    params = []
+    if position:
+        where = f"WHERE position = ? AND {metric} IS NOT NULL"
+        params.append(position)
+    else:
+        where = f"WHERE {metric} IS NOT NULL"
     sql = f"""
         SELECT player_name, position, {metric},
                height_in, weight_lbs, forty_yard, draft_year
         FROM player_athletic_profiles
         {where}
-          AND {metric} IS NOT NULL
         ORDER BY {metric} DESC
         LIMIT {limit}
     """
-    df = duckdb_client.execute(sql)
+    df = duckdb_client.execute(sql, params)
     return {
         "metric": metric,
         "position": position,
@@ -337,10 +352,13 @@ def production_leaderboard(
         )
 
     filters = ["nfl_production_score IS NOT NULL"]
+    params = []
     if position:
-        filters.append(f"position = '{position}'")
+        filters.append("position = ?")
+        params.append(position)
     if season:
-        filters.append(f"season = {season}")
+        filters.append("season = ?")
+        params.append(season)
 
     where = "WHERE " + " AND ".join(filters)
     sql = f"""
@@ -352,7 +370,7 @@ def production_leaderboard(
         ORDER BY nfl_production_score DESC
         LIMIT {limit}
     """
-    df = duckdb_client.execute(sql)
+    df = duckdb_client.execute(sql, params)
     return {
         "position": position,
         "season": season,
@@ -373,10 +391,13 @@ def draft_value_leaderboard(
         )
 
     filters = ["draft_value_score IS NOT NULL"]
+    params = []
     if round:
-        filters.append(f'"round" = {round}')
+        filters.append('"round" = ?')
+        params.append(round)
     if season:
-        filters.append(f"season = {season}")
+        filters.append("season = ?")
+        params.append(season)
 
     where = "WHERE " + " AND ".join(filters)
     sql = f"""
@@ -388,7 +409,7 @@ def draft_value_leaderboard(
         ORDER BY draft_value_score DESC
         LIMIT {limit}
     """
-    df = duckdb_client.execute(sql)
+    df = duckdb_client.execute(sql, params)
     return {
         "round": round,
         "season": season,

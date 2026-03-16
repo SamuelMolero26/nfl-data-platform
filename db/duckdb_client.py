@@ -59,9 +59,9 @@ def _register_tables(conn: duckdb.DuckDBPyConnection) -> None:
     for f in sorted(curated.glob("*.parquet")):
         try:
             conn.execute(
-                 f"CREATE VIEW {_quote_identifier(f.stem)} AS "
-                 f"SELECT * FROM read_parquet('{f}')"
-             )
+                f"CREATE VIEW {_quote_identifier(f.stem)} AS "
+                f"SELECT * FROM read_parquet('{f}')"
+            )
             registered.append(f.stem)
         except Exception as exc:
             logger.warning("Could not register view '%s': %s", f.stem, exc)

@@ -228,9 +228,9 @@ class PlayerIdResolver:
         unresolved = df["player_id"].isna()
         if pfr_id_col and pfr_id_col in df.columns and unresolved.any():
             mapped = df.loc[unresolved, pfr_id_col].map(self._pfr_to_gsis)
-            resolved_mask = unresolved & mapped.notna()
-            df.loc[resolved_mask, "player_id"] = mapped[resolved_mask]
-            df.loc[resolved_mask, "id_confidence"] = "pfr_id"
+            resolved_idx = mapped[mapped.notna()].index
+            df.loc[resolved_idx, "player_id"] = mapped[resolved_idx]
+            df.loc[resolved_idx, "id_confidence"] = "pfr_id"
 
         # --- Pass 3: name-based (exact → fuzzy) ---
         unresolved = df["player_id"].isna()
