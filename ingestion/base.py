@@ -1,6 +1,10 @@
+import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
+
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 class SourceLoader(ABC):
@@ -18,12 +22,16 @@ class SourceLoader(ABC):
     def load(self, df: pd.DataFrame, output_path: Path) -> None:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         df.to_parquet(output_path, index=False)
-        print(f"  Wrote {len(df):,} rows → {output_path}")
+        logger.info("Wrote %s rows → %s", f"{len(df):,}", output_path)
 
     def run(self, output_path: Path) -> pd.DataFrame:
-        print(f"[{self.__class__.__name__}] Extracting from {self.source_path.name}...")
+        logger.info(
+            "[%s] Extracting from %s", self.__class__.__name__, self.source_path.name
+        )
         raw = self.extract()
-        print(f"[{self.__class__.__name__}] Transforming {len(raw):,} rows...")
+        logger.info(
+            "[%s] Transforming %s rows", self.__class__.__name__, f"{len(raw):,}"
+        )
         transformed = self.transform(raw)
         self.load(transformed, output_path)
         return transformed

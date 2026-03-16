@@ -1,0 +1,39 @@
+name: Copilot Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request Copilot review
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.issue.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            try {
+              await github.rest.pulls.createReview({
+                owner,
+                repo,
+                pull_number: prNumber,
+                event: 'COMMENT',
+                body: '@github-copilot-bot, please review this PR.'
+              });
+              console.log('Successfully requested a Copilot review.');
+            } catch (error) {
+              console.error('Failed to request Copilot review:', error);
+              // If it's a permissions error, it might be because the bot isn't a collaborator
+              if (error.status === 403) {
+                core.setFailed('Failed to request review. Ensure the "github-copilot-bot" has the necessary permissions on the repository.');
+              } else {
+                core.setFailed(error.message);
+              }
+            }
