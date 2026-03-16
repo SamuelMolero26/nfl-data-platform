@@ -84,7 +84,8 @@ jobs:
           script: |
             set -e
             cd /opt/nfl-data-platform
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" --password-stdin
             docker compose pull api
             docker compose up -d
