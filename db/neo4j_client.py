@@ -1,4 +1,3 @@
-
 from neo4j import GraphDatabase, Driver
 import config
 
@@ -13,6 +12,7 @@ def get_driver() -> Driver:
             auth=(config.NEO4J_USER, config.NEO4J_PASSWORD),
         )
     return _driver
+
 
 def run_query(cypher: str, params: dict = None) -> list[dict]:
     """Execute a Cypher query and return results as a list of dicts."""
