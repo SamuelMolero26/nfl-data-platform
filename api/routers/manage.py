@@ -1,9 +1,8 @@
 """
-Data management endpoints — browse, preview, and clean Parquet datasets.
-
 Cleaning operations are applied in-memory and written back to the staged layer.
-The curated layer is NOT automatically updated — re-run the pipeline after cleaning.
+The curated layer is NOT automatically updated — pipeline must be re-run to save the change
 """
+
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from pathlib import Path
@@ -38,13 +37,15 @@ def list_datasets():
         files = []
         for f in sorted(path.rglob("*.parquet")):
             df = pd.read_parquet(f)
-            files.append({
-                "name": f.stem,
-                "path": str(f.relative_to(config.BASE_DIR)),
-                "rows": len(df),
-                "columns": len(df.columns),
-                "size_kb": round(f.stat().st_size / 1024, 1),
-            })
+            files.append(
+                {
+                    "name": f.stem,
+                    "path": str(f.relative_to(config.BASE_DIR)),
+                    "rows": len(df),
+                    "columns": len(df.columns),
+                    "size_kb": round(f.stat().st_size / 1024, 1),
+                }
+            )
         result[zone] = files
     return result
 
@@ -57,12 +58,14 @@ def preview_dataset(dataset: str, rows: int = Query(20, le=200)):
 
     schema = []
     for col in df.columns:
-        schema.append({
-            "column": col,
-            "dtype": str(df[col].dtype),
-            "null_count": int(df[col].isna().sum()),
-            "null_pct": round(df[col].isna().mean() * 100, 1),
-        })
+        schema.append(
+            {
+                "column": col,
+                "dtype": str(df[col].dtype),
+                "null_count": int(df[col].isna().sum()),
+                "null_pct": round(df[col].isna().mean() * 100, 1),
+            }
+        )
 
     return {
         "dataset": dataset,
@@ -76,6 +79,7 @@ def preview_dataset(dataset: str, rows: int = Query(20, le=200)):
 # ---------------------------------------------------------------------------
 # Cleaning operations
 # ---------------------------------------------------------------------------
+
 
 class DropColumnsRequest(BaseModel):
     dataset: str
@@ -132,12 +136,17 @@ def fill_nulls(req: FillNullsRequest):
         df[req.column] = col.fillna(col.mode().iloc[0])
     elif req.strategy == "value":
         if req.value is None:
-            raise HTTPException(status_code=400, detail="Provide 'value' when strategy is 'value'.")
+            raise HTTPException(
+                status_code=400, detail="Provide 'value' when strategy is 'value'."
+            )
         df[req.column] = col.fillna(req.value)
 
     df.to_parquet(path, index=False)
     duckdb_client.reset()
-    return {"column": req.column, "nulls_filled": before - int(df[req.column].isna().sum())}
+    return {
+        "column": req.column,
+        "nulls_filled": before - int(df[req.column].isna().sum()),
+    }
 
 
 @router.post("/clean/rename")
@@ -163,4 +172,8 @@ def filter_rows(req: FilterRowsRequest):
     )
     result.to_parquet(path, index=False)
     duckdb_client.reset()
-    return {"rows_before": before, "rows_after": len(result), "removed": before - len(result)}
+    return {
+        "rows_before": before,
+        "rows_after": len(result),
+        "removed": before - len(result),
+    }
