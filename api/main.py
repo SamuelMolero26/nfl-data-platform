@@ -21,6 +21,7 @@ app.include_router(manage.router)
 # Serve the management UI from /
 UI_DIR = Path(__file__).parent.parent / "ui"
 
+
 @app.get("/", include_in_schema=False)
 def serve_ui():
     return FileResponse(UI_DIR / "index.html")

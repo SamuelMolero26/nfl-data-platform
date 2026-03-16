@@ -1,0 +1,16 @@
+[
+  {
+    "type": "mcp-server",
+    "uri": "mcp://io.github.git",
+    "owner": "SamuelMolero26",
+    "repo": "nfl-data-platform",
+    "capabilities": {
+      "codeReview": true
+    }
+  },
+  {
+    "type": "mcp-server",
+    "uri": "mcp://oraios.serena"
+  }
+]
+
