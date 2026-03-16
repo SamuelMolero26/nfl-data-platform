@@ -379,19 +379,3 @@ curl "http://localhost:8000/graph/player/Cam%20Ward/neighbors?depth=2"
 curl "http://localhost:8000/graph/path?from_name=Cam%20Ward&to_name=Dallas%20Cowboys"
 ```
 
----
-
-## Management UI
-
-The data management UI is served at `http://localhost:8000` and provides:
-
-- **Dataset browser** — list all staged and curated Parquet files with row/column counts
-- **Schema viewer** — column names, data types, null counts, and null percentages
-- **Preview** — paginated row preview for any dataset
-- **Cleaning tools** — drop columns, fill nulls, rename columns, filter rows
-
-Cleaning operations are applied to the **staged layer**. After cleaning, re-run the ingestion pipeline to propagate changes to the curated layer:
-
-```bash
-python ingestion/pipeline.py
-```
