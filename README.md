@@ -395,30 +395,3 @@ Cleaning operations are applied to the **staged layer**. After cleaning, re-run 
 ```bash
 python ingestion/pipeline.py
 ```
-
----
-
-## ML Pipeline
-
-> The ML pipeline (dataset builder + scikit-learn trainer) is defined in `ml/`. Trained models are saved as `.pkl` files with accompanying JSON metrics in `ml/models/`.
-
-The `/ml/` API router provides endpoints to trigger training and list saved models.
-
----
-
-## Dependencies
-
-| Package | Purpose |
-|---|---|
-| `fastapi` | REST API framework |
-| `uvicorn` | ASGI server |
-| `duckdb` | In-process SQL engine over Parquet |
-| `pandas` | Data transformation and analysis |
-| `pyarrow` | Parquet read/write |
-| `neo4j` | Neo4j Python driver |
-| `lxml` | HTML parsing (for XLS source file) |
-| `openpyxl` | Excel support |
-| `httpx` | Async HTTP client |
-| `python-multipart` | Form/file upload support |
-| `scikit-learn` | ML model training (regression/classification) |
-| `joblib` | Model serialization (`.pkl` files) |
