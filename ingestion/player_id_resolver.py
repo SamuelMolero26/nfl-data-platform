@@ -204,7 +204,7 @@ class PlayerIdResolver:
 
         best_match, best_score, best_idx = max(results, key=lambda x: x[1])
         logger.debug(
-            "resolve: fuzzy match '%s' → '%s' (score=%d, id=%s)",
+            "resolve: fuzzy match '%s' → '%s' (score=%.0f, id=%s)",
             player_name, best_match, best_score, self._fuzzy_ids[best_idx],
         )
         return self._fuzzy_ids[best_idx], "fuzzy"
