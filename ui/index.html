@@ -950,13 +950,22 @@ function app() {
     async openPlayerProfile(playerName) {
       this.playerProfile = { open: true, loading: true, data: null, error: '' };
       try {
-        // First search to get the player_id
-        const s = await this.api(`/players/search?name=${encodeURIComponent(playerName)}&limit=1`);
-        const pid = s.players?.[0]?.player_id;
-        if (pid) {
-          await this.openPlayerProfileById(pid);
+        // First search to get possible player_id candidates for this name
+        const s = await this.api(`/players/search?name=${encodeURIComponent(playerName)}&limit=50`);
+        const players = s.players ?? [];
+
+        if (players.length === 1 && players[0]?.player_id) {
+          // Exactly one match, safe to open directly
+          await this.openPlayerProfileById(players[0].player_id);
+          this.playerProfile.loading = false;
+        } else if (players.length > 1) {
+          // Ambiguous name: surface results in the search UI instead of picking arbitrarily
+          this.playerSearch.name = playerName;
+          this.playerSearch.results = players;
+          this.playerProfile.error = 'Multiple players found with this name. Please select the correct player from the search results.';
+          this.playerProfile.loading = false;
         } else {
-          // Fall back to combine data only
+          // No search matches; fall back to combine data only
           const d = await this.api(`/players/${encodeURIComponent(playerName)}`);
           this.playerProfile.data = d.players?.[0] ?? null;
           this.playerProfile.loading = false;
