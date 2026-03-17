@@ -843,6 +843,8 @@ function app() {
     teamSeasonTo: '',
     teamStats: [],
 
+    tablesError: '',
+
     datasets: {},
     preview: null,
     clean: {
@@ -865,7 +867,11 @@ function app() {
       try {
         const t = await this.api('/query/tables');
         this.availableTables = t.tables || [];
-      } catch(_) {}
+        this.tablesError = '';
+      } catch (e) {
+        this.availableTables = null;
+        this.tablesError = e && e.message ? e.message : 'Failed to load available tables';
+      }
     },
 
     async api(path, opts={}) {
