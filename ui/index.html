@@ -345,7 +345,7 @@
               <table>
                 <thead><tr><th>#</th><th>Name</th><th>Pos</th><th>Year</th><th>Rnd</th><th>Pick</th><th>Value Score</th><th>Pct</th><th>CarAV</th><th>Pro Bowls</th></tr></thead>
                 <tbody>
-                  <template x-for="(p, i) in lb.draftValue.players" :key="`${p.player_name}-${p.pick}`">
+                  <template x-for="(p, i) in lb.draftValue.players" :key="i">
                     <tr>
                       <td x-text="i+1"></td>
                       <td x-text="p.player_name"></td>
