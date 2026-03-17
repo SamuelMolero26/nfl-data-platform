@@ -26,11 +26,13 @@ Safe to re-run — all writes use idempotent MERGE.
 """
 
 import logging
+import math
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from duckdb import df
 import pandas as pd
 from neo4j import Session
 
@@ -65,10 +67,23 @@ def create_constraints(session: Session) -> None:
 # Helper
 # ---------------------------------------------------------------------------
 
-
 def _to_records(df: pd.DataFrame) -> list[dict]:
     """Replace NaN/NaT with None so Neo4j receives null, not float('nan')."""
-    return df.where(pd.notnull(df), None).to_dict("records")
+    raw = df.to_dict("records")
+    return [
+        {k: (None if (v is not None and isinstance(v, float) and math.isnan(v)) else v)
+        for k, v in row.items()}
+        for row in raw
+    ]
+    
+def _to_records(df: pd.DataFrame) -> list[dict]:
+    """Replace NaN/NaT with None so Neo4j receives null, not float('nan')."""
+    raw = df.where(pd.notnull(df), None).to_dict("records")
+    # Second pass: catch any float('nan') that survived (e.g. in object columns)
+    return [
+        {k: (None if isinstance(v, float) and pd.isna(v) else v) for k, v in row.items()}
+    for row in raw
+    ]
 
 
 # ---------------------------------------------------------------------------
