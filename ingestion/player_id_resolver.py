@@ -102,8 +102,6 @@ class PlayerIdResolver:
         # exact: normalized_name → list of (gsis_id, pos_group)
         self._exact: dict[str, list[tuple[str, str]]] = {}
 
-        # TODO: validate and do some testing
-
         # fuzzy: parallel lists for rapidfuzz (might need to be validated/updated later)
         self._fuzzy_names: list[str] = []
         self._fuzzy_ids: list[str] = []
@@ -121,6 +119,18 @@ class PlayerIdResolver:
             self._fuzzy_names.append(norm)
             self._fuzzy_ids.append(pid)
             self._fuzzy_pos.append(pos)
+
+        # Warn about names that map to multiple players — these will require
+        # position disambiguation at resolve time and may still be unresolvable.
+        ambiguous = {name: entries for name, entries in self._exact.items() if len(entries) > 1}
+        if ambiguous:
+            logger.warning(
+                "PlayerIdResolver: %d ambiguous name(s) in master_players "
+                "(same normalized name, different player_ids). "
+                "Resolution will require position context.",
+                len(ambiguous),
+            )
+            logger.debug("Ambiguous names: %s", list(ambiguous.keys())[:20])
 
     def resolve_by_pfr_id(self, pfr_id: str) -> str | None:
         """Pass 2: direct pfr_id → gsis_id lookup."""
@@ -148,20 +158,28 @@ class PlayerIdResolver:
         if not norm:
             return None, None
 
-        # TODO: This can be rewriten for simplification (automata implementation)
-        # TODO: add logging for debugging
-
         # --- Exact match ---
         candidates = self._exact.get(norm, [])
         if candidates:
             if pos:
                 pos_match = [pid for pid, p in candidates if p == pos]
                 if len(pos_match) == 1:
+                    logger.debug(
+                        "resolve: exact+pos match '%s' (%s) → %s",
+                        player_name, pos, pos_match[0],
+                    )
                     return pos_match[0], "exact"
                 if len(pos_match) > 1:
                     # Ambiguous: multiple players with same name + position group
+                    logger.debug(
+                        "resolve: ambiguous exact+pos match for '%s' (%s) — %d candidates",
+                        player_name, pos, len(pos_match),
+                    )
                     return None, None
             if len(candidates) == 1:
+                logger.debug(
+                    "resolve: exact match '%s' → %s", player_name, candidates[0][0]
+                )
                 return candidates[0][0], "exact"
 
         # --- Fuzzy match ---
@@ -176,6 +194,7 @@ class PlayerIdResolver:
             limit=5,
         )
         if not results:
+            logger.debug("resolve: no match for '%s' (norm='%s')", player_name, norm)
             return None, None
 
         # Filter by position group if available
@@ -183,7 +202,11 @@ class PlayerIdResolver:
             pos_results = [r for r in results if self._fuzzy_pos[r[2]] == pos]
             results = pos_results if pos_results else results
 
-        _, _, best_idx = max(results, key=lambda x: x[1])
+        best_match, best_score, best_idx = max(results, key=lambda x: x[1])
+        logger.debug(
+            "resolve: fuzzy match '%s' → '%s' (score=%.0f, id=%s)",
+            player_name, best_match, best_score, self._fuzzy_ids[best_idx],
+        )
         return self._fuzzy_ids[best_idx], "fuzzy"
 
     def resolve_dataframe(
@@ -215,14 +238,15 @@ class PlayerIdResolver:
         df["player_id"] = pd.NA
         df["id_confidence"] = pd.NA
 
-        # TODO: needs to be tested and updated
-        # TODO: add logging for debugging and diagnostics
+        total = len(df)
+        logger.debug("resolve_dataframe: starting resolution for %d rows", total)
 
         # --- Pass 1: direct gsis_id ---
         if gsis_id_col and gsis_id_col in df.columns:
             mask = df[gsis_id_col].notna()
             df.loc[mask, "player_id"] = df.loc[mask, gsis_id_col].astype(str)
             df.loc[mask, "id_confidence"] = "gsis"
+            logger.debug("resolve_dataframe: Pass 1 (gsis) resolved %d rows", int(mask.sum()))
 
         # --- Pass 2: pfr_id cross-reference ---
         unresolved = df["player_id"].isna()
@@ -231,6 +255,9 @@ class PlayerIdResolver:
             resolved_idx = mapped[mapped.notna()].index
             df.loc[resolved_idx, "player_id"] = mapped[resolved_idx]
             df.loc[resolved_idx, "id_confidence"] = "pfr_id"
+            logger.debug(
+                "resolve_dataframe: Pass 2 (pfr_id) resolved %d rows", len(resolved_idx)
+            )
 
         # --- Pass 3: name-based (exact → fuzzy) ---
         unresolved = df["player_id"].isna()
@@ -242,12 +269,26 @@ class PlayerIdResolver:
                 if position_col and position_col in df.columns
                 else pd.Series("", index=unresolved_idx)
             )
+            pass3_resolved = 0
             for idx in unresolved_idx:
                 pid, conf = self.resolve(names[idx], positions[idx])
                 if pid:
                     df.at[idx, "player_id"] = pid
                     df.at[idx, "id_confidence"] = conf
+                    pass3_resolved += 1
+            logger.debug(
+                "resolve_dataframe: Pass 3 (name) resolved %d / %d rows",
+                pass3_resolved,
+                len(unresolved_idx),
+            )
 
+        final_resolved = int(df["player_id"].notna().sum())
+        logger.debug(
+            "resolve_dataframe: complete — %d/%d rows resolved (%.1f%%)",
+            final_resolved,
+            total,
+            (final_resolved / total * 100) if total else 0.0,
+        )
         return df
 
     def resolution_summary(self, df: pd.DataFrame) -> dict:

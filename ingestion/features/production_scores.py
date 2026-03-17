@@ -72,10 +72,14 @@ def build_production_profiles(
     # If only pfr_player_id is available, snap_share won't join to weekly_stats
     # and will be logged as a warning.
 
-    # TODO: testing and validation
     sc = pd.read_parquet(snap_counts_path)
+    logger.info(
+        "snap_counts loaded: %d rows, %d columns", len(sc), len(sc.columns)
+    )
+    logger.debug("snap_counts columns: %s", sc.columns.tolist())
     if "game_type" in sc.columns:
         sc = sc[sc["game_type"] == "REG"]
+        logger.debug("snap_counts after REG filter: %d rows", len(sc))
 
     if "player_id" in sc.columns:
         id_col_sc = "player_id"
@@ -98,10 +102,16 @@ def build_production_profiles(
 
     # weekly stats
     ws = pd.read_parquet(weekly_stats_path)
+    logger.info(
+        "weekly_stats loaded: %d rows, %d columns", len(ws), len(ws.columns)
+    )
+    logger.debug("weekly_stats columns: %s", ws.columns.tolist())
     if "season_type" in ws.columns:
         ws = ws[ws["season_type"] == "REG"]
+        logger.debug("weekly_stats after REG filter: %d rows", len(ws))
     elif "game_type" in ws.columns:
         ws = ws[ws["game_type"] == "REG"]
+        logger.debug("weekly_stats after REG filter: %d rows", len(ws))
 
     epa_cols = [
         c for c in ["passing_epa", "rushing_epa", "receiving_epa"] if c in ws.columns
@@ -131,6 +141,13 @@ def build_production_profiles(
         on=["player_id", "season"],
         how="outer",
     )  # snaps + stats
+    logger.debug(
+        "After outer merge — snap_counts: %d player-seasons, "
+        "weekly_stats: %d player-seasons, merged: %d rows",
+        len(sc_season),
+        len(ws_season),
+        len(result),
+    )
 
     if "position" not in result.columns and "position" in ws.columns:
         pos_map = ws.groupby("player_id")["position"].first()
