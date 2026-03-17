@@ -18,12 +18,17 @@ venv/
 env/
 
 # Lake data (runtime artifacts, not source-controlled)
+lake/raw/
 lake/staged/
 lake/curated/
 
 # ML models (runtime artifacts)
 ml/models/*.pkl
 ml/models/*.json
+
+# MCP logs/artifacts
+.playwright-mcp/
+*.log
 
 # IDE
 .vscode/
