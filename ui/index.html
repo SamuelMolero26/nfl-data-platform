@@ -160,8 +160,8 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <template x-for="p in playerData" :key="p.player_name">
-                    <tr style="cursor:pointer" @click="p.player_id ? openPlayerProfileById(p.player_id) : openPlayerProfile(p.player_name)">
+                  <template x-for="(p, idx) in playerData" :key="`${p.player_name}-${p.draft_year ?? 'na'}-${p.draft_pick ?? 'na'}-${idx}`">
+                    <tr style="cursor:pointer" @click="openPlayerProfile(p.player_name)">
                       <td x-text="p.player_name"></td>
                       <td><span class="badge blue" x-text="p.position"></span></td>
                       <td x-text="p.school ?? '—'"></td>
