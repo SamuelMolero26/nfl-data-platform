@@ -74,8 +74,9 @@ def build_production_profiles(
 
     sc = pd.read_parquet(snap_counts_path)
     logger.info(
-        "snap_counts loaded: %d rows, columns=%s", len(sc), sc.columns.tolist()
+        "snap_counts loaded: %d rows, %d columns", len(sc), len(sc.columns)
     )
+    logger.debug("snap_counts columns: %s", sc.columns.tolist())
     if "game_type" in sc.columns:
         sc = sc[sc["game_type"] == "REG"]
         logger.debug("snap_counts after REG filter: %d rows", len(sc))
@@ -102,8 +103,9 @@ def build_production_profiles(
     # weekly stats
     ws = pd.read_parquet(weekly_stats_path)
     logger.info(
-        "weekly_stats loaded: %d rows, columns=%s", len(ws), ws.columns.tolist()
+        "weekly_stats loaded: %d rows, %d columns", len(ws), len(ws.columns)
     )
+    logger.debug("weekly_stats columns: %s", ws.columns.tolist())
     if "season_type" in ws.columns:
         ws = ws[ws["season_type"] == "REG"]
         logger.debug("weekly_stats after REG filter: %d rows", len(ws))
