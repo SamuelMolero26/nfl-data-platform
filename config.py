@@ -65,3 +65,6 @@ API_PORT = int(os.getenv("API_PORT", "8000"))
 # --- nflreadpy / nflverse ---
 NFLVERSE_START_YEAR = int(os.getenv("NFLVERSE_START_YEAR", "2010"))
 NFLVERSE_END_YEAR = int(os.getenv("NFLVERSE_END_YEAR", "2024"))
+
+# --- College Football Data API ---
+CFBD_API_KEY = os.getenv("CFBD_API_KEY", "")

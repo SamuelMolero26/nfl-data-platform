@@ -107,7 +107,7 @@ All paths and credentials live in `config.py`. Environment variable overrides:
 - `API_HOST` / `API_PORT` (defaults: `0.0.0.0`, `8000`)
 - `NFLVERSE_START_YEAR` / `NFLVERSE_END_YEAR` (defaults: `2010`, `2024`)
 
-Copy `.env.example` → `.env` for local overrides.
+Create a `.env` file in the project root for local overrides.
 
 ## Deployment
 

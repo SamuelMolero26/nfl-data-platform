@@ -190,8 +190,7 @@ Management UI: `http://localhost:8000`
 ### Docker Compose
 
 ```bash
-# Copy and configure the environment file
-cp .env.example .env
+# Create and configure the environment file
 # Edit .env as needed (defaults work for local development)
 
 # Start all services (Neo4j + API)
@@ -218,11 +217,7 @@ All settings are in `config.py` and can be overridden with environment variables
 | `API_HOST` | `0.0.0.0` | API bind address |
 | `API_PORT` | `8000` | API port |
 
-Create a `.env` file from the example for local overrides:
-
-```bash
-cp .env.example .env
-```
+Create a `.env` file in the project root for local overrides.
 
 ---
 
