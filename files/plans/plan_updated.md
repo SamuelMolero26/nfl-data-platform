@@ -9,11 +9,13 @@ The current platform has only 2 data sources (combine.xls, team-stats.csv) produ
 ## Library Choice: Use nflreadpy (not nfl_data_py)
 
 `nfl_data_py` is deprecated. The actively-maintained replacement is **nflreadpy**:
+
 - Returns Polars DataFrames → convert with `.to_pandas()` or use Polars natively
 - Adds `load_contracts()`, `load_pfr_advstats()`, `load_ff_playerids()` not in old lib
 - Drop-in conceptual replacement with `load_*` prefix instead of `import_*`
 
 New dependencies for `requirements.txt`:
+
 ```
 nflreadpy>=0.1.0
 cfbd>=1.0.0
@@ -59,6 +61,7 @@ rapidfuzz>=3.0.0
 > CFBD returns "tall" format (one row per stat type). The transform step must pivot wide by `(player, school, season, category)`.
 
 ### Free Stack Is Sufficient
+
 All 7 analytical goals (Team Diagnosis, Player Projection, Long-Term Career Simulation, Player-Roster Fit, Positional Flexibility, Injury/Health Analysis, Draft Optimization) are fully achievable with nflreadpy + CFBD alone. No paid services (PFF, Sports Info Solutions, TruMedia) are required or used in this implementation.
 
 ---
@@ -80,6 +83,7 @@ All 7 analytical goals (Team Diagnosis, Player Projection, Long-Term Career Simu
 ## Architecture Changes
 
 ### Keep Existing Layer Names
+
 Stay with `raw/staged/curated` (not bronze/silver/gold) to match existing code.
 
 ### New File Structure (additions only)
@@ -164,6 +168,7 @@ class PlayerIdResolver:
 Also use `load_ff_playerids()` cross-reference table to link gsis_id to ESPN/Yahoo IDs for future integrations.
 
 Target resolution rates:
+
 - Rosters → 100% (source of truth)
 - Draft history → >90%
 - Combine → >85%
@@ -325,11 +330,13 @@ def _register_tables(conn):
 Migrate Player unique constraint from `name` → `player_id` (gsis_id) — names are not globally unique.
 
 New constraints:
+
 ```python
 "CREATE CONSTRAINT IF NOT EXISTS FOR (g:Game) REQUIRE g.game_id IS UNIQUE"
 ```
 
 New relationships:
+
 - `(Player)-[:SNAPPED_IN {offense_snaps, defense_snaps}]->(Game)`
 - `(Player)-[:INJURED_DURING {type, body_part, game_status}]->(Season)`
 - `(Player)-[:SELECTED_IN_DRAFT {round, pick}]->(DraftClass)`
@@ -404,6 +411,7 @@ print(f"Production profiles: {len(pp):,}")
 ```
 
 DuckDB join sanity:
+
 ```sql
 -- All gold tables should join cleanly through player_id
 SELECT p.player_name, p.position, a.speed_score, pr.snap_share, d.durability_score

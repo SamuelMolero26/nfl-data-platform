@@ -69,7 +69,7 @@ def _register_tables(conn: duckdb.DuckDBPyConnection) -> None:
 
     # Auto-register Hive-partitioned subdirectories
     for d in sorted(curated.iterdir()):
-        if d.is_dir() and any(d.rglob("*.parquet")):
+        if d.is_dir() and next(d.rglob("*.parquet"), None) is not None:
             try:
                 conn.execute(
                     f"CREATE VIEW {_quote_identifier(d.name)} AS SELECT * FROM "

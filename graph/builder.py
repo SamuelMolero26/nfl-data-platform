@@ -69,20 +69,12 @@ def create_constraints(session: Session) -> None:
 
 def _to_records(df: pd.DataFrame) -> list[dict]:
     """Replace NaN/NaT with None so Neo4j receives null, not float('nan')."""
-    raw = df.to_dict("records")
-    return [
-        {k: (None if (v is not None and isinstance(v, float) and math.isnan(v)) else v)
-        for k, v in row.items()}
-        for row in raw
-    ]
-    
-def _to_records(df: pd.DataFrame) -> list[dict]:
-    """Replace NaN/NaT with None so Neo4j receives null, not float('nan')."""
+    # First convert to dict with where/notnull to handle most cases
     raw = df.where(pd.notnull(df), None).to_dict("records")
-    # Second pass: catch any float('nan') that survived (e.g. in object columns)
+    # Second pass: catch any float('nan') that survived (e.g. in object columns or complex types)
     return [
-        {k: (None if isinstance(v, float) and pd.isna(v) else v) for k, v in row.items()}
-    for row in raw
+        {k: (None if (isinstance(v, float) and pd.isna(v)) else v) for k, v in row.items()}
+        for row in raw
     ]
 
 
@@ -426,6 +418,19 @@ def _build_contract_relationships(session: Session) -> None:
         return
     if team_col != "team":
         df = df.rename(columns={team_col: "team"})
+
+    # Normalize team names to abbreviations
+    if config.CURATED_MASTER_TEAMS.exists():
+        df_teams = pd.read_parquet(config.CURATED_MASTER_TEAMS)
+        df = pd.merge(
+            df,
+            df_teams[['team_id', 'team_nick']],
+            left_on='team',
+            right_on='team_nick',
+            how='left'
+        )
+        df['team'] = df['team_id'].fillna(df['team'])
+        df = df.drop(columns=['team_id', 'team_nick'])
 
     df = df.dropna(subset=["player_id", "team"])
     records = _to_records(df)
