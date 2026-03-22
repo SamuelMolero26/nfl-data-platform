@@ -67,13 +67,17 @@ def create_constraints(session: Session) -> None:
 # Helper
 # ---------------------------------------------------------------------------
 
+
 def _to_records(df: pd.DataFrame) -> list[dict]:
     """Replace NaN/NaT with None so Neo4j receives null, not float('nan')."""
     # First convert to dict with where/notnull to handle most cases
     raw = df.where(pd.notnull(df), None).to_dict("records")
     # Second pass: catch any float('nan') that survived (e.g. in object columns or complex types)
     return [
-        {k: (None if (isinstance(v, float) and pd.isna(v)) else v) for k, v in row.items()}
+        {
+            k: (None if (isinstance(v, float) and pd.isna(v)) else v)
+            for k, v in row.items()
+        }
         for row in raw
     ]
 
@@ -424,13 +428,13 @@ def _build_contract_relationships(session: Session) -> None:
         df_teams = pd.read_parquet(config.CURATED_MASTER_TEAMS)
         df = pd.merge(
             df,
-            df_teams[['team_id', 'team_nick']],
-            left_on='team',
-            right_on='team_nick',
-            how='left'
+            df_teams[["team_id", "team_nick"]],
+            left_on="team",
+            right_on="team_nick",
+            how="left",
         )
-        df['team'] = df['team_id'].fillna(df['team'])
-        df = df.drop(columns=['team_id', 'team_nick'])
+        df["team"] = df["team_id"].fillna(df["team"])
+        df = df.drop(columns=["team_id", "team_nick"])
 
     df = df.dropna(subset=["player_id", "team"])
     records = _to_records(df)

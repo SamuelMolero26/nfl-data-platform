@@ -122,7 +122,9 @@ class PlayerIdResolver:
 
         # Warn about names that map to multiple players — these will require
         # position disambiguation at resolve time and may still be unresolvable.
-        ambiguous = {name: entries for name, entries in self._exact.items() if len(entries) > 1}
+        ambiguous = {
+            name: entries for name, entries in self._exact.items() if len(entries) > 1
+        }
         if ambiguous:
             logger.warning(
                 "PlayerIdResolver: %d ambiguous name(s) in master_players "
@@ -166,14 +168,18 @@ class PlayerIdResolver:
                 if len(pos_match) == 1:
                     logger.debug(
                         "resolve: exact+pos match '%s' (%s) → %s",
-                        player_name, pos, pos_match[0],
+                        player_name,
+                        pos,
+                        pos_match[0],
                     )
                     return pos_match[0], "exact"
                 if len(pos_match) > 1:
                     # Ambiguous: multiple players with same name + position group
                     logger.debug(
                         "resolve: ambiguous exact+pos match for '%s' (%s) — %d candidates",
-                        player_name, pos, len(pos_match),
+                        player_name,
+                        pos,
+                        len(pos_match),
                     )
                     return None, None
             if len(candidates) == 1:
@@ -205,7 +211,10 @@ class PlayerIdResolver:
         best_match, best_score, best_idx = max(results, key=lambda x: x[1])
         logger.debug(
             "resolve: fuzzy match '%s' → '%s' (score=%.0f, id=%s)",
-            player_name, best_match, best_score, self._fuzzy_ids[best_idx],
+            player_name,
+            best_match,
+            best_score,
+            self._fuzzy_ids[best_idx],
         )
         return self._fuzzy_ids[best_idx], "fuzzy"
 
@@ -246,7 +255,9 @@ class PlayerIdResolver:
             mask = df[gsis_id_col].notna()
             df.loc[mask, "player_id"] = df.loc[mask, gsis_id_col].astype(str)
             df.loc[mask, "id_confidence"] = "gsis"
-            logger.debug("resolve_dataframe: Pass 1 (gsis) resolved %d rows", int(mask.sum()))
+            logger.debug(
+                "resolve_dataframe: Pass 1 (gsis) resolved %d rows", int(mask.sum())
+            )
 
         # --- Pass 2: pfr_id cross-reference ---
         unresolved = df["player_id"].isna()

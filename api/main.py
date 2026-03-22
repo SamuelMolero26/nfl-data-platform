@@ -7,20 +7,21 @@ from pathlib import Path
 from api.routers import query, players, teams, graph, manage
 import db.duckdb_client as duckdb_client
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize DuckDB connection
     duckdb_client.get_connection()
     yield
     # Cleanup if needed (e.g., close connections)
-    duckdb_client.close_reset()
+    duckdb_client.reset()
 
 
 app = FastAPI(
     title="NFL Data Platform",
     description="Data lake API with SQL queries, graph traversal, and data management.",
     version="0.1.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Routers

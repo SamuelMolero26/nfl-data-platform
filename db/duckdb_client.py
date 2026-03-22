@@ -82,6 +82,25 @@ def _register_tables(conn: duckdb.DuckDBPyConnection) -> None:
                 )
                 skipped.append(d.name)
 
+    # Auto-register staged parquets (file stem = view name); skip conflicts with curated
+    staged = config.LAKE_STAGED_DIR
+    if staged.exists():
+        for f in sorted(staged.rglob("*.parquet")):
+            if f.stem in registered:
+                continue  # curated takes precedence
+            try:
+                conn.execute(
+                    f"CREATE VIEW {_quote_identifier(f.stem)} AS "
+                    f"SELECT * FROM read_parquet('{f}')"
+                )
+                registered.append(f.stem)
+            except Exception as exc:
+                logger.warning("Could not register staged view '%s': %s", f.stem, exc)
+                skipped.append(f.stem)
+
+    # Legacy aliases for backward compatibility
+    _register_legacy_aliases(conn, registered)
+
     # Legacy aliases for backward compatibility
     _register_legacy_aliases(conn, registered)
 
@@ -99,6 +118,8 @@ def _register_legacy_aliases(
     aliases = {
         "players": ("player_profiles", config.CURATED_PLAYER_PROFILES),
         "team_stats": ("team_performance", config.CURATED_TEAM_PERFORMANCE),
+        "combine": (None, config.STAGED_COMBINE),
+        "draft_picks": ("draft_value_history", config.CURATED_DRAFT_VALUE_HISTORY),
     }
     for alias, (stem, path) in aliases.items():
         if alias in registered:
