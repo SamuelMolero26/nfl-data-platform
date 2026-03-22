@@ -23,12 +23,25 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Check syntax (key modules)
+      - name: Check syntax (all key modules)
         run: |
           python -m py_compile config.py
           python -m py_compile api/main.py
+          python -m py_compile api/routers/query.py
+          python -m py_compile api/routers/players.py
+          python -m py_compile api/routers/teams.py
+          python -m py_compile api/routers/graph.py
+          python -m py_compile api/routers/manage.py
           python -m py_compile ingestion/pipeline.py
+          python -m py_compile ingestion/base.py
+          python -m py_compile ingestion/loaders/combine_loader.py
+          python -m py_compile ingestion/loaders/team_stats_loader.py
+          python -m py_compile ingestion/loaders/nflreadpy_loader.py
           python -m py_compile graph/builder.py
+          python -m py_compile db/duckdb_client.py
+
+      - name: Verify pipeline imports cleanly
+        run: python -c "import config; import ingestion.pipeline; import graph.builder; import api.main"
 
   # ── 2. Build & push Docker image ─────────────────────────────────────────
   build:
@@ -88,6 +101,14 @@ jobs:
             git reset --hard origin/main
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" --password-stdin
             docker compose pull api
-            docker compose up -d
+            docker compose up -d --force-recreate
             docker system prune -f
+            echo "==> Waiting for API to be healthy..."
+            for i in $(seq 1 30); do
+              if docker compose exec -T api python -c "import api.main" 2>/dev/null; then
+                echo "API is up after ${i}s"
+                break
+              fi
+              sleep 5
+            done
             echo "Deploy complete at $(date)"
