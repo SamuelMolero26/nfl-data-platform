@@ -7,7 +7,7 @@ from pathlib import Path
 from api.routers import query, players, teams, graph, manage
 import db.duckdb_client as duckdb_client
 
-@asyncontextmanager
+@asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize DuckDB connection
     duckdb_client.initialize_duckdb()
