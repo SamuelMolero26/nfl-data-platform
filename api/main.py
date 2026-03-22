@@ -10,10 +10,10 @@ import db.duckdb_client as duckdb_client
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize DuckDB connection
-    duckdb_client.initialize_duckdb()
+    duckdb_client.get_connection()
     yield
     # Cleanup if needed (e.g., close connections)
-    duckdb_client.close_duckdb()
+    duckdb_client.close_reset()
 
 
 app = FastAPI(
