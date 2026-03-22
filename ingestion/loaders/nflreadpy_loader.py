@@ -185,6 +185,76 @@ class NflreadpyLoader:
         df = _to_pandas(nfl.load_ftn_charting(seasons))
         return _save(df, output_path, "ftn_data")
 
+    def load_combine(self, output_path: Path, xls_df: pd.DataFrame | None = None) -> pd.DataFrame:
+        """
+        Load historical NFL combine data from nflreadpy (2000–present).
+
+        Normalizes nflverse column names to the platform schema so downstream
+        consumers (build_athletic_profiles, PlayerIdResolver) see the same
+        shape regardless of whether a row came from the XLS or nflreadpy.
+
+        If xls_df is provided (e.g. the 2025 XLS class), its draft years are
+        dropped from the nflreadpy pull to avoid duplicates, then the two
+        sources are concatenated with XLS rows appended last.
+
+        nflverse column → platform column mapping:
+          player_name  → player_name
+          pos          → position
+          school       → school
+          ht           → height_in   (stored as numeric inches in nflverse)
+          wt           → weight_lbs
+          forty        → forty_yard
+          vertical     → vertical_in
+          bench_reps   → bench_reps
+          broad_jump   → broad_jump_in
+          cone         → three_cone
+          shuttle      → shuttle
+          draft_team   → draft_team
+          draft_round  → draft_round
+          draft_pick   → draft_pick
+          season       → draft_year  (combine season = draft year in nflverse)
+          gsis_id, pfr_id kept as-is
+        """
+        _require_nflreadpy()
+        seasons = [s for s in range(2000, max(self.seasons) + 1)]
+        df = _to_pandas(nfl.load_combine(seasons))
+
+        col_map = {
+            "player_name": "player_name",
+            "pos": "position",
+            "school": "school",
+            "ht": "height_in",
+            "wt": "weight_lbs",
+            "forty": "forty_yard",
+            "vertical": "vertical_in",
+            "bench_reps": "bench_reps",
+            "broad_jump": "broad_jump_in",
+            "cone": "three_cone",
+            "shuttle": "shuttle",
+            "draft_team": "draft_team",
+            "draft_round": "draft_round",
+            "draft_pick": "draft_pick",
+            "season": "draft_year",
+        }
+        df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
+
+        keep = list(col_map.values()) + ["gsis_id", "pfr_id"]
+        df = df[[c for c in keep if c in df.columns]]
+
+        for col in ["weight_lbs", "forty_yard", "vertical_in", "bench_reps",
+                    "broad_jump_in", "three_cone", "shuttle", "height_in",
+                    "draft_pick", "draft_year"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        if xls_df is not None and not xls_df.empty:
+            if "draft_year" in xls_df.columns and "draft_year" in df.columns:
+                xls_years = set(xls_df["draft_year"].dropna().unique())
+                df = df[~df["draft_year"].isin(xls_years)]
+            df = pd.concat([df, xls_df], ignore_index=True)
+
+        return _save(df, output_path, "combine_historical")
+
     def load_contracts(self, output_path: Path) -> pd.DataFrame:
         _require_nflreadpy()
         df = _to_pandas(nfl.load_contracts())

@@ -66,6 +66,14 @@ def run_stage0(skip_nflreadpy: bool = False) -> dict[str, pd.DataFrame]:
         start_year=config.NFLVERSE_START_YEAR,
         end_year=config.NFLVERSE_END_YEAR,
     )
+
+    # Merge XLS combine (current class) with nflreadpy historical combine (2000–present).
+    # XLS rows take precedence for any overlapping draft_year.
+    results["combine"] = loader.load_combine(
+        config.STAGED_COMBINE,
+        xls_df=results.get("combine"),
+    )
+
     nfl_paths = {
         "rosters": config.STAGED_ROSTERS,
         "weekly_stats": config.STAGED_WEEKLY_STATS,
